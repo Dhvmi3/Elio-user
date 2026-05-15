@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Elio</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="panel.css" />
+  <link rel="stylesheet" href="cards.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <button class="sidebar-close" id="sidebarClose">✕</button>
+    <nav class="sidebar-nav">
+      <a data-panel="about">About</a>
+      <a data-panel="rules">Rules</a>
+      <a data-panel="refund">Refund Policy</a>
+      <a data-panel="privacy">Privacy Policy</a>
+      <a data-action="book">Book a Session</a>
+    </nav>
+    <p class="sidebar-footer">
+      <span class="dot"></span>
+      Take a deep breath. You're in a safe space.
+    </p>
+  </aside>
+
+  <!-- OVERLAY -->
+  <div class="overlay" id="overlay"></div>
+
+  <!-- INFO PANELS -->
+  <!-- About -->
+  <div class="panel" id="about">
+    <button class="panel-back" data-close="about">← Back</button>
+    <h1>About Elio</h1>
+    <p>Elio is a safe, anonymous space where you can say the things you can't say anywhere else. No accounts. No history. No judgment.</p>
+    <p>On the other side of every conversation is a real human listening, present, and genuinely there for you.</p>
+    <p>Every session ends and disappears. Nothing is stored. Nothing follows you.</p>
+  </div>
+
+  <!-- Rules -->
+  <div class="panel" id="rules">
+    <button class="panel-back" data-close="rules">← Back</button>
+    <h1>Rules</h1>
+    <h2>What's allowed</h2>
+    <ul>
+      <li>Sharing anything on your mind freely and honestly</li>
+      <li>Taking your time, there's no rush here</li>
+      <li>Ending the session whenever you need to</li>
+    </ul>
+    <h2>What's not allowed</h2>
+    <ul>
+      <li>Harassment or abuse toward the listener</li>
+      <li>Sharing illegal content or intentions</li>
+      <li>Attempting to identify or locate the listener</li>
+      <li>Using Elio for anything other than honest conversation</li>
+    </ul>
+    <h2>Violations</h2>
+    <p>Sessions involving rule violations will be ended immediately.</p>
+  </div>
+
+  <!-- Privacy -->
+  <div class="panel" id="privacy">
+    <button class="panel-back" data-close="privacy">← Back</button>
+    <h1>Privacy Policy</h1>
+    <p>Elio is built on anonymity. Here is exactly what we do and don't store.</p>
+    <h2>What we never store</h2>
+    <ul>
+      <li>Your messages — they exist only during the session</li>
+      <li>Your name — even if you provide one, it's forgotten after the session</li>
+      <li>Your identity — no account, no profile, no trace</li>
+    </ul>
+    <h2>What we do store</h2>
+    <ul>
+      <li>Session duration and payment amount — for our own records only</li>
+      <li>Your rating and feedback — anonymously, with no link to you</li>
+    </ul>
+    <h2>Your browser</h2>
+    <p>If you choose to save your payment details for faster sessions, a secure token is stored only in your browser's local storage. Elio never sees your card information. Clearing your browser data removes this token completely.</p>
+  </div>
+
+  <!-- Refund -->
+  <div class="panel" id="refund">
+    <button class="panel-back" data-close="refund">← Back</button>
+    <h1>Refund Policy</h1>
+    <p>Sessions are priced at $5 for 30 minutes. Extensions are $5 each.</p>
+    <h2>No refunds after minute 5</h2>
+    <p>Once 5 minutes of a session have passed, the session is considered delivered and no refund will be issued.</p>
+    <h2>Genuine emergencies</h2>
+    <p>Refunds for genuine emergencies are issued at Elio's sole discretion. If something urgent came up before minute 5, reach out via the complaints section.</p>
+    <h2>Declined sessions</h2>
+    <p>If you decline payment when prompted, the session ends immediately. No charge is made for the conversation prior to the payment prompt.</p>
+  </div>
+
+  <!-- TOP BAR -->
+  <header class="topbar">
+    <span class="logo">Elio</span>
+    <button class="menu-btn" id="menuBtn">
+      <span class="bar"></span>
+      <span class="bar"></span>
+      <span class="bar"></span>
+    </button>
+  </header>
+
+  <!--  MAIN -->
+  <main class="main" id="mainContent">
+
+    <!-- Welcome -->
+    <section class="welcome" id="welcome">
+      <h1>Chat with Elio.</h1>
+      <div class="welcome-chat" id="welcomeChat"></div>
+    </section>
+
+    <!-- Countdown Timer -->
+    <section class="countdown" id="countdown" style="display: none;">
+      <h1>Your session is booked</h1>
+      <p class="session-time" id="sessionTimeUser"></p>
+
+      <div class="timer" id="timer">
+        <span class="timer-block"><span id="days">0</span><small>d</small></span>
+        <span class="timer-block"><span id="hours">0</span><small>h</small></span>
+        <span class="timer-block"><span id="minutes">0</span><small>m</small></span>
+        <span class="timer-block"><span id="seconds">0</span><small>s</small></span>
+      </div>
+      <p class="card-sub">Come back when the timer hits zero.<br>The chat will open automatically.</p>
+      <p class="cancel-note">If you don't make it to your session within 10 minutes,<br>it's assumed you cancelled your session.</p>
+    </section>
+
+    <!-- Chat Container -->
+    <div class="chat" id="chat" style="display: none;">
+      <!-- Session Timer Bar -->
+      <div class="session-timer-bar" id="sessionTimerBar" style="display: none;">
+        <span class="timer-label">Time left</span>
+        <span class="timer-display" id="sessionTimerDisplay">30:00</span>
+        <button id="userEndSessionBtn" style="margin-left: auto; background: none; border: none; color: var(--primary); cursor: pointer; font-size: 13px;">End</button>
+      </div>
+      <!-- Chat Bubble Falls Here-->
+    </div>
+  </main>
+
+  <!-- INPUT BAR -->
+  <div class="input-bar" id="inputBar">
+    <!-- Book Now button -->
+    <button class="card-btn primary" id="bookNowBtn" style="max-width: 300px; margin: 0 auto; display: block;">
+      Book a Session
+    </button>
+
+    <!-- Chat Input -->
+    <div class="input-wrap" id="inputWrap" style="display: none;">
+      <input type="text" class="msg-input" id="msgInput" placeholder="Say anything..." />
+      <button class="send-btn" id="sendBtn">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="20" height="20">
+          <path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- POPUP CARDS -->
+  <!-- Booking Card -->
+  <div class="card" id="bookCard">
+    <p class="card-title">Book a Session</p>
+    <p class="card-sub">Choose a date and time that works for you</p>
+
+    <label for="bookDate" class="book-label">Date</label>
+    <input type="date" id="bookDate" class="book-input" />
+
+    <label for="bookTime" class="book-label">Time</label>
+    <select id="bookTime" class="book-input">
+      <option>Pick a date first</option>
+    </select>
+
+    <p class="card-sub" style="margin-top: 4px;">$5 · 30 minutes</p>
+
+    <button class="card-btn primary" id="bookConfirm">Reserve & Pay $5</button>
+    <button class="card-btn ghost" id="bookCancel">Cancel</button>
+
+    <p class="vpn-warning">⚠️ Please disable VPNs as they can show the wrong time zone.</p>
+  </div>
+
+  <!-- Payment Card -->
+  <div class="card" id="payCard">
+    <p class="card-title">Continue the conversation</p>
+    <p class="card-sub">$5 · 30 minutes</p>
+    <button class="card-btn primary" id="payBtn">Pay $5</button>
+    <button class="card-btn ghost" id="payDecline">Not now</button>
+  </div>
+
+  <!-- Save Token Card -->
+  <div class="card" id="tokenCard">
+    <p class="card-title">Make next time easier?</p>
+    <p class="card-sub">Elio never sees your card details. Stored only in your browser.</p>
+    <button class="card-btn primary" id="saveToken">Save it</button>
+    <button class="card-btn ghost" id="skipToken">No thanks</button>
+  </div>
+
+  <!-- Extension Card -->
+  <div class="card" id="extCard">
+    <p class="card-title">Keep going?</p>
+    <p class="card-sub">Add another 30 minutes · $5</p>
+    <button class="card-btn primary" id="extBtn">Extend</button>
+    <button class="card-btn ghost" id="extDecline">End session</button>
+  </div>
+
+  <!-- Session Ended Card -->
+  <div class="card" id="endCard">
+    <p class="card-title">This session has ended.</p>
+    <p class="card-sub">Come back anytime.</p>
+    <div class="hearts" id="hearts">
+      <span class="heart" data-val="1">♡</span>
+      <span class="heart" data-val="2">♡</span>
+      <span class="heart" data-val="3">♡</span>
+      <span class="heart" data-val="4">♡</span>
+      <span class="heart" data-val="5">♡</span>
+    </div>
+    <textarea class="feedback" id="feedback" placeholder="How can we improve? (optional)"></textarea>
+    <button class="card-btn primary" id="submitFeedback">Done</button>
+  </div>
+
+  <script src="script.js"></script>
+  <script src="panels.js"></script>
+  <script src="cards.js"></script>
+  <script src="booking.js"></script>
+  <script src="timer.js"></script>
+</body>
+</html>
