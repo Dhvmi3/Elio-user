@@ -1,3 +1,5 @@
+// booking.js – User booking, timezone, countdown, and chat init
+
 // 1. ── Timezone Detection ─────────────────────────
 const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const timezoneDisplay = document.getElementById('timezoneDisplay');
@@ -10,7 +12,6 @@ const bookCard    = document.getElementById('bookCard');
 const bookNowBtn  = document.getElementById('bookNowBtn');
 const inputWrap   = document.getElementById('inputWrap');
 const countdown   = document.getElementById('countdown');
-const chatContainer = document.getElementById('chat');
 const bookDate    = document.getElementById('bookDate');
 const bookTime    = document.getElementById('bookTime');
 const bookConfirm = document.getElementById('bookConfirm');
@@ -38,6 +39,7 @@ if (savedBooking) {
   const sessionTime = new Date(savedBooking);
   if (sessionTime > new Date()) {
     showCountdown(sessionTime);
+    listenForStartSignal(); // start listening for admin signal immediately
   } else {
     localStorage.removeItem('elio_session_time');
     showWelcome();
@@ -61,9 +63,9 @@ function loadSlots() {
       if (!slotAvailability[slotISO]) slotAvailability[slotISO] = 3;
       if (slotAvailability[slotISO] > 0) slots.push(slotISO);
     });
-    bookTime.innerHTML = '';
+    bookTime.innerHTML = '<option value="" disabled selected>Select a time…</option>';
     if (slots.length === 0) {
-      bookTime.innerHTML = '<option>No slots available</option>';
+      bookTime.innerHTML += '<option disabled>No slots available</option>';
     } else {
       slots.forEach(slotISO => {
         const timePart = new Date(slotISO).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -73,37 +75,67 @@ function loadSlots() {
         bookTime.appendChild(option);
       });
     }
-    bookTime.disabled = false;
+    bookTime.disabled = false;   // ← re‑enable after loading
   }, 600);
 }
 
 // 7. ── Confirm booking ────────────────────────────
-bookConfirm.addEventListener('click', () => {
+bookConfirm.addEventListener('click', async () => {
+  // Check if a session is already active (timer running or chat visible)
+  if (userSessionTimer !== null || chatContainer.style.display === 'flex') {
+    alert('You are already in an active session. End it first before booking a new one.');
+    return;
+  }
+
   const slotTime = bookTime.value;
   if (!slotTime || slotTime === '') return alert('Please pick a date and time first.');
   if (!slotAvailability[slotTime] || slotAvailability[slotTime] <= 0) return alert('Sorry, no spots left for this time.');
+
+  const sessionToken = crypto.randomUUID();
+  const bookingDateTime = new Date(slotTime);
+
+  const { error } = await window.supabaseClient
+    .from('bookings')
+    .insert({
+      token: sessionToken,
+      booking_time: bookingDateTime.toISOString(),
+      timezone: userTimezone,
+      status: 'pending'
+    });
+
+  if (error) {
+    console.error(error);
+    alert('Booking failed. Please try again.');
+    return;
+  }
+
   slotAvailability[slotTime]--;
+  localStorage.setItem('elio_session_token', sessionToken);
   localStorage.setItem('elio_session_time', slotTime);
   hideCard(bookCard);
-  
-  // ==================== TEST MODE START ====================
-  // Bypass the countdown – show chat immediately.
-  // After testing, delete the block below and uncomment the original `showCountdown` line.
+
+  // TEST MODE (skip countdown)
   welcome.style.display = 'none';
   countdown.style.display = 'none';
   chatContainer.style.display = 'flex';
   if (bookNowBtn) bookNowBtn.style.display = 'none';
   if (inputWrap) inputWrap.style.display = 'flex';
-  localStorage.removeItem('elio_session_time'); // prevent leftover state
-  // ==================== TEST MODE END ====================
-  
-  // ORIGINAL CODE (commented out – uncomment to restore normal waiting period)
-  // showCountdown(new Date(slotTime));
+  localStorage.removeItem('elio_session_time');
+  listenForStartSignal();  // start listening for admin signal
+
+  // Initialise the chat manager immediately (test mode)
+  ChatManager.init(sessionToken);
 });
 
+// 8. ── Cancel button ──────────────────────────────
 bookCancel.addEventListener('click', () => hideCard(bookCard));
 
+// 9. ── Open booking card ──────────────────────────
 function openBookingCard() {
+  if (userSessionTimer !== null || chatContainer.style.display === 'flex') {
+    alert('You are already in an active session. End it first.');
+    return;
+  }
   bookDate.value = '';
   bookTime.innerHTML = '<option>Pick a date first</option>';
   bookTime.disabled = false;
@@ -140,8 +172,15 @@ function updateTimerDisplay(sessionTime) {
     countdown.style.display = 'none';
     chatContainer.style.display = 'flex';
     addListenerWelcomeMessage();
+    showWaitingState();
     if (bookNowBtn) bookNowBtn.style.display = 'none';
     if (inputWrap) inputWrap.style.display = 'flex';
+    listenForStartSignal();  // fallback listener
+    // Initialise chat manager now that the chat has opened
+    const sessionToken = localStorage.getItem('elio_session_token');
+    if (sessionToken) {
+      ChatManager.init(sessionToken);
+    }
     return;
   }
   sessionTimeUserEl.textContent = `Your session: ${sessionTime.toLocaleString(undefined, {
@@ -156,7 +195,7 @@ function updateTimerDisplay(sessionTime) {
   secondsEl.textContent = totalSeconds % 60;
 }
 
-// Event listeners
+// 11. ── Event listeners ───────────────────────────
 if (bookNowBtn) bookNowBtn.addEventListener('click', openBookingCard);
 const sidebarBookLink = document.querySelector('[data-action="book"]');
 if (sidebarBookLink) sidebarBookLink.addEventListener('click', (e) => {

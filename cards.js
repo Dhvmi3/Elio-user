@@ -1,3 +1,5 @@
+// cards.js – card visibility, feedback submission to Supabase
+
 // ─── Card Elements ───────────────────────────────
 const payCard     = document.getElementById('payCard');
 const tokenCard   = document.getElementById('tokenCard');
@@ -16,48 +18,36 @@ function hideCard(card) {
   overlay.classList.remove('show');
 }
 
-// ─── Payment Card ─────────────────────────────────
-document.getElementById('payBtn').addEventListener('click', () => {
-  hideCard(payCard);
-  setTimeout(() => showCard(tokenCard), 400);
-});
-
-document.getElementById('payDecline').addEventListener('click', () => {
-  hideCard(payCard);
-  showCard(endCard);
-});
-
-// ─── Token Card ───────────────────────────────────
-document.getElementById('saveToken').addEventListener('click', () => {
-  localStorage.setItem('elio_token', 'saved');
-  hideCard(tokenCard);
-});
-
-document.getElementById('skipToken').addEventListener('click', () => {
-  hideCard(tokenCard);
-});
-
-// ─── Extension Card ───────────────────────────────
-document.getElementById('extBtn').addEventListener('click', () => {
-  hideCard(extCard);
-  // Extend session timer by 30 minutes
-  if (window.extendUserSession) {
-    window.extendUserSession(30);  
-  }
-});
-
-document.getElementById('extDecline').addEventListener('click', () => {
-  hideCard(extCard);
-  showCard(endCard);
-});
-
 // ─── Feedback Submit ──────────────────────────────
-document.getElementById('submitFeedback').addEventListener('click', () => {
+document.getElementById('submitFeedback').addEventListener('click', async () => {
+  const token = localStorage.getItem('elio_session_token');
+  const rating = document.querySelectorAll('.heart.active').length;
+  const comment = document.getElementById('feedback').value.trim();
+
+  // Only submit if we have a token and rating
+  if (token && rating > 0) {
+    try {
+      const { error } = await window.supabaseClient
+        .from('feedback')
+        .insert({
+          session_token: token,
+          rating: rating,
+          comment: comment || null
+        });
+      if (error) {
+        console.error('Feedback insert error:', error);
+      }
+    } catch (err) {
+      console.error('Feedback network error:', err);
+    }
+  }
+
   hideCard(endCard);
   // Stop the session timer
-  if (window.stopUserSessionTimer) {
-    window.stopUserSessionTimer();
-  }
+  if (window.stopUserSessionTimer) window.stopUserSessionTimer();
+  // Show the book button again
+  const bookBtn = document.getElementById('bookNowBtn');
+  if (bookBtn) bookBtn.style.display = 'block';
 });
 
 // ─── Heart Rating ─────────────────────────────────

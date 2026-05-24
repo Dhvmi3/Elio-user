@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="panel.css" />
   <link rel="stylesheet" href="cards.css" />
   <link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://checkout.flutterwave.com/v3.js"></script>
 </head>
 <body>
 
@@ -170,9 +171,9 @@
     <label for="bookTime" class="book-label">Time</label>
     <select id="bookTime" class="book-input">
       <option>Pick a date first</option>
-    </select>
+    </select><br>
 
-    <p class="card-sub" style="margin-top: 4px;">$5 · 30 minutes</p>
+    <p class="card-sub" style="margin-top: 4px;">For the price of a coffee, you get 30 minutes of genuine listening.</p><br>
 
     <button class="card-btn primary" id="bookConfirm">Reserve & Pay $5</button>
     <button class="card-btn ghost" id="bookCancel">Cancel</button>
@@ -183,7 +184,7 @@
   <!-- Payment Card -->
   <div class="card" id="payCard">
     <p class="card-title">Continue the conversation</p>
-    <p class="card-sub">$5 · 30 minutes</p>
+    <p class="card-sub">Continue this conversation for a price of coffee.</p>
     <button class="card-btn primary" id="payBtn">Pay $5</button>
     <button class="card-btn ghost" id="payDecline">Not now</button>
   </div>
@@ -199,7 +200,7 @@
   <!-- Extension Card -->
   <div class="card" id="extCard">
     <p class="card-title">Keep going?</p>
-    <p class="card-sub">Add another 30 minutes · $5</p>
+    <p class="card-sub">For another coffee, add 30 minutes to your session.</p>
     <button class="card-btn primary" id="extBtn">Extend</button>
     <button class="card-btn ghost" id="extDecline">End session</button>
   </div>
@@ -219,10 +220,17 @@
     <button class="card-btn primary" id="submitFeedback">Done</button>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  const SUPABASE_URL = 'https://zdlwgiccemfklgjocyig.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpkbHdnaWNjZW1ma2xnam9jeWlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0ODQ0MDEsImV4cCI6MjA5NTA2MDQwMX0.uUhTKPKS6pDFgJpcKJ0ULaxgmaix_VD1GHX8mqcsn6A';
+  window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  console.log('Supabase client created:', window.supabaseClient);
+</script>
   <script src="script.js"></script>
   <script src="panels.js"></script>
   <script src="cards.js"></script>
-  <script src="booking.js"></script>
   <script src="timer.js"></script>
+  <script src="booking.js"></script>
 </body>
 </html>
