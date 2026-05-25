@@ -153,7 +153,7 @@ async function userEndedSession(reason = 'User ended the session') {
   // Tell backend to log this session end
   const sessionToken = localStorage.getItem('elio_session_token');
   if (sessionToken) {
-    await fetch('http://localhost:3000/end-session-user', {
+    await fetch('https://eliobackend.onrender.com/end-session-user', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token: sessionToken })
@@ -276,7 +276,7 @@ async function tryTokenCharge(amount) {
   const tx_ref = localStorage.getItem('elio_session_token') || 'auto_' + Date.now();
 
   try {
-    const res = await fetch('http://localhost:3000/charge-token', {
+    const res = await fetch('https://eliobackend.onrender.com/charge-token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token: cardToken, amount, tx_ref })
@@ -463,7 +463,7 @@ async function processPayment(amount, tx_ref = null) {
   if (!tx_ref) tx_ref = localStorage.getItem('elio_session_token') || 'test_' + Date.now();
 
   try {
-    const response = await fetch('http://localhost:3000/create-payment', {
+    const response = await fetch('https://eliobackend.onrender.com/create-payment', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ amount, tx_ref })
