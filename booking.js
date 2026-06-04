@@ -1,13 +1,12 @@
 // booking.js – User booking, timezone, countdown, and chat init
 
-// 1. ── Timezone Detection ─────────────────────────
 const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const timezoneDisplay = document.getElementById('timezoneDisplay');
 if (timezoneDisplay) {
   timezoneDisplay.textContent = `Your time zone: ${userTimezone}`;
 }
 
-// 2. ── DOM Elements ───────────────────────────────
+// DOM Elements
 const bookCard    = document.getElementById('bookCard');
 const bookNowBtn  = document.getElementById('bookNowBtn');
 const inputWrap   = document.getElementById('inputWrap');
@@ -25,30 +24,44 @@ const secondsEl = document.getElementById('seconds');
 
 let timerInterval = null;
 
-// 3. ── Set min date to tomorrow ───────────────────
+// Minimum date is tomorrow
 const tomorrow = new Date();
 tomorrow.setDate(tomorrow.getDate() + 1);
 bookDate.min = tomorrow.toISOString().split('T')[0];
 
-// 4. ── Simulated availability ─────────────────────
 let slotAvailability = {};
 
-// 5. ── Check for existing booking on load ─────────
-const savedBooking = localStorage.getItem('elio_session_time');
-if (savedBooking) {
-  const sessionTime = new Date(savedBooking);
-  if (sessionTime > new Date()) {
-    showCountdown(sessionTime);
-    listenForStartSignal(); // start listening for admin signal immediately
+// ----- Session State Restoration (fixes refresh/tab-close loss) -----
+const isActiveSession = localStorage.getItem('elio_session_active') === 'true';
+const savedToken = localStorage.getItem('elio_session_token');
+
+if (isActiveSession && savedToken) {
+  // Restore chat UI immediately
+  welcome.style.display = 'none';
+  countdown.style.display = 'none';
+  chatContainer.style.display = 'flex';
+  if (bookNowBtn) bookNowBtn.style.display = 'none';
+  if (inputWrap) inputWrap.style.display = 'flex';
+  listenForStartSignal();                    // reconnect to session channel
+  ChatManager.init(savedToken);             // reload messages & subscribe
+} else {
+  // Normal flow: check for future booking
+  const savedBooking = localStorage.getItem('elio_session_time');
+  if (savedBooking) {
+    const sessionTime = new Date(savedBooking);
+    if (sessionTime > new Date()) {
+      showCountdown(sessionTime);
+      listenForStartSignal();
+    } else {
+      localStorage.removeItem('elio_session_time');
+      showWelcome();
+    }
   } else {
-    localStorage.removeItem('elio_session_time');
     showWelcome();
   }
-} else {
-  showWelcome();
 }
 
-// 6. ── Date change → load available times ─────────
+// ----- Date change → load available times -----
 bookDate.addEventListener('change', loadSlots);
 function loadSlots() {
   const date = bookDate.value;
@@ -75,17 +88,16 @@ function loadSlots() {
         bookTime.appendChild(option);
       });
     }
-    bookTime.disabled = false;   // ← re‑enable after loading
+    bookTime.disabled = false;
   }, 600);
 }
 
-// 7. ── Confirm booking ────────────────────────────
+// ----- Confirm booking -----
 bookConfirm.addEventListener('click', async () => {
-  // Check if a session is already active (timer running or chat visible)
-  if (userSessionTimer !== null || chatContainer.style.display === 'flex') {
+  if (localStorage.getItem('elio_session_active') === 'true' || chatContainer.style.display === 'flex') {
     alert('You are already in an active session. End it first before booking a new one.');
     return;
-  }
+}
 
   const slotTime = bookTime.value;
   if (!slotTime || slotTime === '') return alert('Please pick a date and time first.');
@@ -114,35 +126,35 @@ bookConfirm.addEventListener('click', async () => {
   localStorage.setItem('elio_session_time', slotTime);
   hideCard(bookCard);
 
-  // TEST MODE (skip countdown)
+  // TEST MODE (skip countdown) – will be removed for production
   welcome.style.display = 'none';
   countdown.style.display = 'none';
   chatContainer.style.display = 'flex';
   if (bookNowBtn) bookNowBtn.style.display = 'none';
   if (inputWrap) inputWrap.style.display = 'flex';
-  localStorage.removeItem('elio_session_time');
-  listenForStartSignal();  // start listening for admin signal
-
-  // Initialise the chat manager immediately (test mode)
+  localStorage.removeItem('elio_session_time');          // countdown not needed
+  localStorage.setItem('elio_session_active', 'true');   // mark session active for reloads
+  listenForStartSignal();
   ChatManager.init(sessionToken);
+  showWaitingState();                                    // show timer bar + End button
 });
 
-// 8. ── Cancel button ──────────────────────────────
+// ----- Cancel button -----
 bookCancel.addEventListener('click', () => hideCard(bookCard));
 
-// 9. ── Open booking card ──────────────────────────
+// ----- Open booking card -----
 function openBookingCard() {
-  if (userSessionTimer !== null || chatContainer.style.display === 'flex') {
+  if (localStorage.getItem('elio_session_active') === 'true' || chatContainer.style.display === 'flex') {
     alert('You are already in an active session. End it first.');
     return;
-  }
+}
   bookDate.value = '';
   bookTime.innerHTML = '<option>Pick a date first</option>';
   bookTime.disabled = false;
   showCard(bookCard);
 }
 
-// 10. ── UI States ─────────────────────────────────
+// ----- UI States -----
 function showWelcome() {
   welcome.style.display = 'block';
   countdown.style.display = 'none';
@@ -168,6 +180,7 @@ function updateTimerDisplay(sessionTime) {
   if (diff <= 0) {
     clearInterval(timerInterval);
     localStorage.removeItem('elio_session_time');
+    localStorage.setItem('elio_session_active', 'true');  
     welcome.style.display = 'none';
     countdown.style.display = 'none';
     chatContainer.style.display = 'flex';
@@ -175,8 +188,7 @@ function updateTimerDisplay(sessionTime) {
     showWaitingState();
     if (bookNowBtn) bookNowBtn.style.display = 'none';
     if (inputWrap) inputWrap.style.display = 'flex';
-    listenForStartSignal();  // fallback listener
-    // Initialise chat manager now that the chat has opened
+    listenForStartSignal();
     const sessionToken = localStorage.getItem('elio_session_token');
     if (sessionToken) {
       ChatManager.init(sessionToken);
@@ -195,7 +207,7 @@ function updateTimerDisplay(sessionTime) {
   secondsEl.textContent = totalSeconds % 60;
 }
 
-// 11. ── Event listeners ───────────────────────────
+// ----- Event listeners -----
 if (bookNowBtn) bookNowBtn.addEventListener('click', openBookingCard);
 const sidebarBookLink = document.querySelector('[data-action="book"]');
 if (sidebarBookLink) sidebarBookLink.addEventListener('click', (e) => {

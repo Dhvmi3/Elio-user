@@ -3,11 +3,33 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Elio</title>
+  
+  <!-- SEO & Social -->
+  <title>Elio — Your Human Chatbot · Anonymous Listening Sessions</title>
+  <meta name="description" content="Elio is a safe, anonymous space where you can talk to a real human listener. No accounts, no history, no judgment. Book a 30‑minute session for the price of a coffee." />
+  <link rel="canonical" href="https://chatwithelio.netlify.app" />
+  
+  <meta property="og:title" content="Elio — Your Human Chatbot" />
+  <meta property="og:description" content="Say the things you can't say anywhere else. A real human is on the other side." />
+  <meta property="og:url" content="https://chatwithelio.netlify.app" />
+  <meta property="og:type" content="website" />
+  <meta property="og:image" content="https://elio-user.netlify.app/elio-og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Elio – anonymous listening" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Elio — Your Human Chatbot" />
+  <meta name="twitter:description" content="Say the things you can't say anywhere else. Real human. 30 minutes. Anonymous." />
+  <meta name="twitter:image" content="https://elio-user.netlify.app/elio-og-image.png" />
+
+  <!-- Stylesheets -->
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="panel.css" />
   <link rel="stylesheet" href="cards.css" />
   <link href="https://fonts.googleapis.com/css2?family=Pacifico&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  
+  <!-- Flutterwave -->
   <script src="https://checkout.flutterwave.com/v3.js"></script>
 </head>
 <body>
@@ -38,6 +60,7 @@
     <h1>About Elio</h1>
     <p>Elio is a safe, anonymous space where you can say the things you can't say anywhere else. No accounts. No history. No judgment.</p>
     <p>On the other side of every conversation is a real human listening, present, and genuinely there for you.</p>
+    <p>We don't know who you are — and we never will. Every session is treated as a completely new person. Nothing follows you.</p>
     <p>Every session ends and disappears. Nothing is stored. Nothing follows you.</p>
   </div>
 
@@ -69,17 +92,18 @@
     <p>Elio is built on anonymity. Here is exactly what we do and don't store.</p>
     <h2>What we never store</h2>
     <ul>
-      <li>Your messages — they exist only during the session</li>
+      <li>Your messages — they exist only during the session (they are temporarily held so you can pick up where you left off if you refresh; they are permanently deleted once the session ends).</li>
       <li>Your name — even if you provide one, it's forgotten after the session</li>
       <li>Your identity — no account, no profile, no trace</li>
+      <li>Your payment card details — we never see them; they go directly to our payment processor</li>
     </ul>
     <h2>What we do store</h2>
     <ul>
       <li>Session duration and payment amount — for our own records only</li>
       <li>Your rating and feedback — anonymously, with no link to you</li>
     </ul>
-    <h2>Your browser</h2>
-    <p>If you choose to save your payment details for faster sessions, a secure token is stored only in your browser's local storage. Elio never sees your card information. Clearing your browser data removes this token completely.</p>
+    <h2>Anonymity is absolute</h2>
+    <p>We don't know who you are. Every time you book a session, you are a brand new person to us. There is no way to connect one session to another.</p>
   </div>
 
   <!-- Refund -->
@@ -105,20 +129,18 @@
     </button>
   </header>
 
-  <!--  MAIN -->
+  <!-- MAIN -->
   <main class="main" id="mainContent">
-
     <!-- Welcome -->
     <section class="welcome" id="welcome">
       <h1>Chat with Elio.</h1>
       <div class="welcome-chat" id="welcomeChat"></div>
     </section>
 
-    <!-- Countdown Timer -->
+    <!-- Countdown -->
     <section class="countdown" id="countdown" style="display: none;">
       <h1>Your session is booked</h1>
       <p class="session-time" id="sessionTimeUser"></p>
-
       <div class="timer" id="timer">
         <span class="timer-block"><span id="days">0</span><small>d</small></span>
         <span class="timer-block"><span id="hours">0</span><small>h</small></span>
@@ -129,26 +151,24 @@
       <p class="cancel-note">If you don't make it to your session within 10 minutes,<br>it's assumed you cancelled your session.</p>
     </section>
 
-    <!-- Chat Container -->
+    <!-- Chat -->
     <div class="chat" id="chat" style="display: none;">
-      <!-- Session Timer Bar -->
       <div class="session-timer-bar" id="sessionTimerBar" style="display: none;">
         <span class="timer-label">Time left</span>
         <span class="timer-display" id="sessionTimerDisplay">30:00</span>
         <button id="userEndSessionBtn" style="margin-left: auto; background: none; border: none; color: var(--primary); cursor: pointer; font-size: 13px;">End</button>
       </div>
-      <!-- Chat Bubble Falls Here-->
+      <div id="paymentIndicator" style="display: none; text-align: center; padding: 8px; font-style: italic; color: var(--primary);">
+        Payment in progress — timer paused
+      </div>
     </div>
   </main>
 
   <!-- INPUT BAR -->
   <div class="input-bar" id="inputBar">
-    <!-- Book Now button -->
     <button class="card-btn primary" id="bookNowBtn" style="max-width: 300px; margin: 0 auto; display: block;">
       Book a Session
     </button>
-
-    <!-- Chat Input -->
     <div class="input-wrap" id="inputWrap" style="display: none;">
       <input type="text" class="msg-input" id="msgInput" placeholder="Say anything..." />
       <button class="send-btn" id="sendBtn">
@@ -164,37 +184,24 @@
   <div class="card" id="bookCard">
     <p class="card-title">Book a Session</p>
     <p class="card-sub">Choose a date and time that works for you</p>
-
     <label for="bookDate" class="book-label">Date</label>
     <input type="date" id="bookDate" class="book-input" />
-
     <label for="bookTime" class="book-label">Time</label>
     <select id="bookTime" class="book-input">
       <option>Pick a date first</option>
-    </select><br>
-
+    </select>
     <p class="card-sub" style="margin-top: 4px;">For the price of a coffee, you get 30 minutes of genuine listening.</p><br>
-
     <button class="card-btn primary" id="bookConfirm">Reserve & Pay $5</button>
     <button class="card-btn ghost" id="bookCancel">Cancel</button>
-
     <p class="vpn-warning">⚠️ Please disable VPNs as they can show the wrong time zone.</p>
   </div>
 
   <!-- Payment Card -->
   <div class="card" id="payCard">
     <p class="card-title">Continue the conversation</p>
-    <p class="card-sub">Continue this conversation for a price of coffee.</p>
+    <p class="card-sub">Continue this conversation for the price of a coffee.</p>
     <button class="card-btn primary" id="payBtn">Pay $5</button>
     <button class="card-btn ghost" id="payDecline">Not now</button>
-  </div>
-
-  <!-- Save Token Card -->
-  <div class="card" id="tokenCard">
-    <p class="card-title">Make next time easier?</p>
-    <p class="card-sub">Elio never sees your card details. Stored only in your browser.</p>
-    <button class="card-btn primary" id="saveToken">Save it</button>
-    <button class="card-btn ghost" id="skipToken">No thanks</button>
   </div>
 
   <!-- Extension Card -->
@@ -220,13 +227,14 @@
     <button class="card-btn primary" id="submitFeedback">Done</button>
   </div>
 
+  <!-- Supabase client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>
-  const SUPABASE_URL = 'https://zdlwgiccemfklgjocyig.supabase.co';
-  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpkbHdnaWNjZW1ma2xnam9jeWlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0ODQ0MDEsImV4cCI6MjA5NTA2MDQwMX0.uUhTKPKS6pDFgJpcKJ0ULaxgmaix_VD1GHX8mqcsn6A';
-  window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  console.log('Supabase client created:', window.supabaseClient);
-</script>
+  <script>
+    const SUPABASE_URL = 'https://zdlwgiccemfklgjocyig.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpkbHdnaWNjZW1ma2xnam9jeWlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0ODQ0MDEsImV4cCI6MjA5NTA2MDQwMX0.uUhTKPKS6pDFgJpcKJ0ULaxgmaix_VD1GHX8mqcsn6A';
+    window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    console.log('Supabase client created:', window.supabaseClient);
+  </script>
   <script src="script.js"></script>
   <script src="panels.js"></script>
   <script src="cards.js"></script>

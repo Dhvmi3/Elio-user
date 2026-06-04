@@ -2,7 +2,6 @@
 
 // ─── Card Elements ───────────────────────────────
 const payCard     = document.getElementById('payCard');
-const tokenCard   = document.getElementById('tokenCard');
 const extCard     = document.getElementById('extCard');
 const endCard     = document.getElementById('endCard');
 const hearts      = document.querySelectorAll('.heart');

@@ -8,48 +8,42 @@ const ChatManager = {
   subscription: null,
 
   async init(sessionToken) {
-  // If already initialized with the same token, do nothing
-  if (this.token === sessionToken && this.subscription) {
-    return;
-  }
+    if (this.token === sessionToken && this.subscription) return;
 
-  // If a different subscription exists, clean it up first
-  if (this.subscription) {
-    this.subscription.unsubscribe();
-    this.subscription = null;
-  }
+    if (this.subscription) {
+      this.subscription.unsubscribe();
+      this.subscription = null;
+    }
 
-  this.token = sessionToken;
+    this.token = sessionToken;
 
-  // Load existing messages from DB
-  const { data, error } = await window.supabaseClient
-    .from('messages')
-    .select('*')
-    .eq('session_token', this.token)
-    .order('created_at', { ascending: true });
+    const { data, error } = await window.supabaseClient
+      .from('messages')
+      .select('*')
+      .eq('session_token', this.token)
+      .order('created_at', { ascending: true });
 
-  if (!error && data) {
-    data.forEach(msg => this.renderMessage(msg.sender, msg.text, msg.id));
-  }
+    if (!error && data) {
+      data.forEach(msg => this.renderMessage(msg.sender, msg.text, msg.id));
+    }
 
-  // Subscribe to new inserts (realtime)
-  this.subscription = window.supabaseClient
-    .channel('table-db-changes')
-    .on(
-      'postgres_changes',
-      {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'messages',
-        filter: `session_token=eq.${this.token}`
-      },
-      (payload) => {
-        const msg = payload.new;
-        this.renderMessage(msg.sender, msg.text, msg.id);
-      }
-    )
-    .subscribe();
-},
+    this.subscription = window.supabaseClient
+      .channel('table-db-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `session_token=eq.${this.token}`
+        },
+        (payload) => {
+          const msg = payload.new;
+          this.renderMessage(msg.sender, msg.text, msg.id);
+        }
+      )
+      .subscribe();
+  },
 
   async sendMessage(sender, text) {
     if (!this.token) return;
@@ -60,7 +54,6 @@ const ChatManager = {
   },
 
   renderMessage(sender, text, id) {
-    // Use global createBubble (must accept optional id to prevent duplicates)
     if (typeof createBubble === 'function') {
       if (id && document.getElementById(`msg-${id}`)) return;
       createBubble(text, sender === 'user' ? 'sent' : 'received', id);
@@ -77,145 +70,144 @@ const ChatManager = {
 };
 
 // ------------------------------------------------------------
-// 2. TIMER VARIABLES
+// 2. TIMER – uses absolute end time (prevents background tab drift)
 // ------------------------------------------------------------
-let userSessionTimer = null;
-let userSessionSeconds = 30 * 60;
+let userSessionEndTime = null;
+let timerTickInterval = null;
 let hasShownFirstPayment = false;
 let hasShownExtensionPrompt = false;
 let sessionChannel = null;
+let isTimerPaused = false;
 
 const timerBar = document.getElementById('sessionTimerBar');
 const timerDisplay = document.getElementById('sessionTimerDisplay');
 if (timerBar) timerBar.style.display = 'none';
 
-// ------------------------------------------------------------
-// 3. TIMER HELPERS
-// ------------------------------------------------------------
 function updateUserTimerDisplay() {
-  if (!timerDisplay) return;
-  const mins = Math.floor(userSessionSeconds / 60);
-  const secs = userSessionSeconds % 60;
+  if (!timerDisplay || !userSessionEndTime) return;
+  const remaining = Math.max(0, Math.floor((userSessionEndTime - Date.now()) / 1000));
+  const mins = Math.floor(remaining / 60);
+  const secs = remaining % 60;
   timerDisplay.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
-// Local pause (no broadcast)
-function pauseLocal() {
-  if (userSessionTimer) {
-    clearInterval(userSessionTimer);
-    userSessionTimer = null;
-  }
-}
+function startTimerTick() {
+  if (timerTickInterval) return;
+  timerTickInterval = setInterval(() => {
+    if (isTimerPaused) return;
+    if (!userSessionEndTime) return;
 
-// Local resume (no broadcast)
-function resumeLocal() {
-  if (userSessionTimer) return; // already running
-  if (userSessionSeconds <= 0) return;
-  userSessionTimer = setInterval(() => {
-    if (userSessionSeconds <= 0) {
-      clearInterval(userSessionTimer);
-      userSessionTimer = null;
+    const remaining = Math.max(0, Math.floor((userSessionEndTime - Date.now()) / 1000));
+    updateUserTimerDisplay();
+
+    if (remaining <= 0) {
+      clearInterval(timerTickInterval);
+      timerTickInterval = null;
       if (timerBar) timerBar.style.display = 'none';
       endSessionDueToTimeout();
       return;
     }
-    if (!hasShownFirstPayment && userSessionSeconds <= 1680 && userSessionSeconds > 0) {
+
+    if (!hasShownFirstPayment && remaining <= 1680) {
       hasShownFirstPayment = true;
       showPaymentCardForInitial();
     }
-    if (!hasShownExtensionPrompt && userSessionSeconds <= 180 && userSessionSeconds > 0) {
+    if (!hasShownExtensionPrompt && remaining <= 180) {
       hasShownExtensionPrompt = true;
       showExtensionPrompt();
     }
-    userSessionSeconds--;
-    updateUserTimerDisplay();
-  }, 1000);
+  }, 250);
 }
 
-// User-initiated pause → pauses locally and broadcasts to admin
+function stopTimerTick() {
+  if (timerTickInterval) {
+    clearInterval(timerTickInterval);
+    timerTickInterval = null;
+  }
+}
+
 function pauseUserTimer() {
-  pauseLocal();
+  if (isTimerPaused) return;
+  isTimerPaused = true;
+  stopTimerTick();
   broadcastEvent('timer-paused');
 }
 
-// User-initiated resume → resumes locally and broadcasts to admin
 function resumeUserTimer() {
-  if (userSessionTimer) return; // already running
-  resumeLocal();
+  if (!isTimerPaused) return;
+  isTimerPaused = false;
+  startTimerTick();
   broadcastEvent('timer-resumed');
 }
 
-// User manually ends session → broadcast and cleanup
-async function userEndedSession(reason = 'User ended the session') {
-  // Broadcast to admin
+function userEndedSession(reason = 'User ended the session') {
   broadcastEvent('user-ended-session', { reason });
 
-  // Tell backend to log this session end
   const sessionToken = localStorage.getItem('elio_session_token');
   if (sessionToken) {
-    await fetch('https://eliobackend.onrender.com/end-session-user', {
+    fetch('https://eliobackend.onrender.com/end-session-user', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token: sessionToken })
     }).catch(e => console.error('Log user end error:', e));
   }
 
-  // Clean up locally
   cleanupAfterEnd();
 }
 
-// Called when user declines payment (same as manual end)
 function declinePaymentEnd() {
   userEndedSession('User declined payment');
 }
 
 // ------------------------------------------------------------
-// 4. SESSION START / STOP
+// 3. SESSION START / STOP
 // ------------------------------------------------------------
-function startUserSessionTimer() {
-  if (userSessionTimer) return;
-  userSessionSeconds = 30 * 60;
+function startUserSessionTimer(endTime) {
+  userSessionEndTime = endTime || Date.now() + 30 * 60 * 1000;
+  localStorage.setItem('elio_session_end_time', userSessionEndTime);
+  localStorage.setItem('elio_session_active', 'true');   // 🔧 Fix: persist active flag
   hasShownFirstPayment = false;
   hasShownExtensionPrompt = false;
+  isTimerPaused = false;
   updateUserTimerDisplay();
   if (timerBar) timerBar.style.display = 'flex';
-  resumeLocal(); // starts the interval
+  startTimerTick();
 }
 
 function endSessionDueToTimeout() {
-  // Broadcast timeout if channel still open
   broadcastEvent('user-ended-session', { reason: 'Session time limit reached' });
   cleanupAfterEnd();
 }
 
 function cleanupAfterEnd() {
-  pauseLocal();
+  stopTimerTick();
+  userSessionEndTime = null;
   if (timerBar) timerBar.style.display = 'none';
   chatContainer.style.display = 'none';
   document.getElementById('inputWrap').style.display = 'none';
-
-  // Show end card
   const endCard = document.getElementById('endCard');
   if (endCard) endCard.classList.add('show');
-
   const bookBtn = document.getElementById('bookNowBtn');
   if (bookBtn) bookBtn.style.display = 'block';
-
-  // Clean up ChatManager
   ChatManager.cleanup();
-  // Clean up channel
   cleanupSessionChannel();
+  localStorage.removeItem('elio_session_active');
+  localStorage.removeItem('elio_session_end_time');
 }
 
 // ------------------------------------------------------------
-// 5. ADMIN ACTIONS (received via broadcast)
+// 4. ADMIN ACTIONS (received via broadcast)
 // ------------------------------------------------------------
 function showAdminEndedSession(reason = 'The listener has ended the session.') {
   cleanupSessionChannel();
-  pauseLocal();
+  stopTimerTick();
+  userSessionEndTime = null;
   timerBar.style.display = 'none';
   chatContainer.style.display = 'none';
   document.getElementById('inputWrap').style.display = 'none';
+
+  // Show overlay
+  overlay.classList.add('show');   // 🔧 Fix: dim background
 
   let adminEndCard = document.getElementById('adminEndCard');
   if (!adminEndCard) {
@@ -230,6 +222,7 @@ function showAdminEndedSession(reason = 'The listener has ended the session.') {
     document.body.appendChild(adminEndCard);
     document.getElementById('closeAdminEndCard').addEventListener('click', () => {
       adminEndCard.classList.remove('show');
+      overlay.classList.remove('show');   // 🔧 Fix: remove dimming
       document.getElementById('bookNowBtn').style.display = 'block';
     });
   } else {
@@ -238,89 +231,58 @@ function showAdminEndedSession(reason = 'The listener has ended the session.') {
   adminEndCard.classList.add('show');
   document.getElementById('bookNowBtn').style.display = 'block';
 
-  // Clean up ChatManager
   ChatManager.cleanup();
+  localStorage.removeItem('elio_session_active');
+  localStorage.removeItem('elio_session_end_time');
 }
 
-// Handle admin pause/resume broadcasts
 function handleAdminTimerPaused() {
-  pauseLocal();
-  // Show a system message in chat
+  isTimerPaused = true;
+  stopTimerTick();
   if (typeof createBubble === 'function') {
     createBubble('Listener paused the timer', 'system');
   }
 }
 
 function handleAdminTimerResumed() {
-  resumeLocal();
+  isTimerPaused = false;
+  startTimerTick();
   if (typeof createBubble === 'function') {
     createBubble('Listener resumed the timer', 'system');
   }
 }
 
-// Try to charge a saved card token (returns true if payment succeeded)
-async function tryTokenCharge(amount) {
-  const userId = localStorage.getItem('elio_user_id');
-  if (!userId) return false;   // no saved identity at all
-
-  // Look up a saved token for this user
-  const { data: tokens, error } = await window.supabaseClient
-    .from('user_tokens')
-    .select('token')
-    .eq('user_id', userId)
-    .limit(1);
-
-  if (error || !tokens || tokens.length === 0) return false;
-
-  const cardToken = tokens[0].token;
-  const tx_ref = localStorage.getItem('elio_session_token') || 'auto_' + Date.now();
-
-  try {
-    const res = await fetch('https://eliobackend.onrender.com/charge-token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: cardToken, amount, tx_ref })
-    });
-    const data = await res.json();
-    if (data.success) {
-      console.log('Tokenized charge successful');
-      return true;   // payment done – no card UI needed
-    } else {
-      console.warn('Tokenized charge failed:', data.message);
-      return false;  // fall through to normal checkout
-    }
-  } catch (err) {
-    console.error('Tokenized charge network error:', err);
-    return false;
-  }
+// ------------------------------------------------------------
+// 5. PAYMENT CARDS (with timer hide/show)
+// ------------------------------------------------------------
+function hideTimerForPayment() {
+  if (timerBar) timerBar.style.display = 'none';
+  const paymentIndicator = document.getElementById('paymentIndicator');
+  if (paymentIndicator) paymentIndicator.style.display = 'block';
 }
 
-// ------------------------------------------------------------
-// 6. PAYMENT CARDS (keep existing logic, but call new wrappers)
-// ------------------------------------------------------------
+function showTimerAfterPayment() {
+  if (timerBar) timerBar.style.display = 'flex';
+  const paymentIndicator = document.getElementById('paymentIndicator');
+  if (paymentIndicator) paymentIndicator.style.display = 'none';
+}
+
 function showPaymentCardForInitial() {
   pauseUserTimer();
+  hideTimerForPayment();
+
   const payCard = document.getElementById('payCard');
   if (!payCard) return;
   const payBtn = document.getElementById('payBtn');
   const declineBtn = document.getElementById('payDecline');
 
   payBtn.onclick = async () => {
-    // 1. Try saved token first
-    const tokenPaid = await tryTokenCharge(5);
-    if (tokenPaid) {
-      hideCard(payCard);
-      resumeUserTimer();
-      return;   // no token‑save prompt needed (already saved)
-    }
-
-    // 2. Fallback to normal Flutterwave modal
     try {
       const success = await processPayment(5);
       if (success) {
         hideCard(payCard);
         resumeUserTimer();
-        showTokenSaveCard();
+        showTimerAfterPayment();
       } else {
         alert('Payment failed. Please try again or use another card.');
         hideCard(payCard);
@@ -342,6 +304,8 @@ function showPaymentCardForInitial() {
 
 function showPaymentRetryCard() {
   pauseUserTimer();
+  hideTimerForPayment();
+
   let retryCard = document.getElementById('paymentRetryCard');
   if (!retryCard) {
     retryCard = document.createElement('div');
@@ -361,17 +325,10 @@ function showPaymentRetryCard() {
 
   retryBtn.onclick = async () => {
     hideCard(retryCard);
-    // Try saved token first
-    const tokenPaid = await tryTokenCharge(5);
-    if (tokenPaid) {
-      resumeUserTimer();
-      return;
-    }
-    // Fallback to normal modal
     const success = await processPayment(5);
     if (success) {
       resumeUserTimer();
-      showTokenSaveCard();
+      showTimerAfterPayment();
     } else {
       endSessionDueToTimeout();
     }
@@ -386,77 +343,34 @@ function showPaymentRetryCard() {
 
 function showExtensionPrompt() {
   pauseUserTimer();
+  hideTimerForPayment();
+
   const extCard = document.getElementById('extCard');
   if (!extCard) return;
   const extBtn = document.getElementById('extBtn');
   const declineBtn = document.getElementById('extDecline');
 
   extBtn.onclick = async () => {
-    // 1. Try saved token first
-    const tokenPaid = await tryTokenCharge(5);
-    if (tokenPaid) {
-      hideCard(extCard);
-      if (window.extendUserSession) window.extendUserSession(30);
-      resumeUserTimer();
-      return;
-    }
-
-    // 2. Fallback to normal modal
     const success = await processPayment(5);
     if (success) {
       hideCard(extCard);
       if (window.extendUserSession) window.extendUserSession(30);
       resumeUserTimer();
+      showTimerAfterPayment();
     } else {
       alert('Payment failed. Session will end when timer reaches 0.');
       hideCard(extCard);
       resumeUserTimer();
+      showTimerAfterPayment();
     }
   };
 
   declineBtn.onclick = () => {
     hideCard(extCard);
     resumeUserTimer();
+    showTimerAfterPayment();
   };
   showCard(extCard);
-}
-
-function showTokenSaveCard() {
-  const tokenCard = document.getElementById('tokenCard');
-  if (!tokenCard) return;
-  const saveBtn = document.getElementById('saveToken');
-  const skipBtn = document.getElementById('skipToken');
-
-  saveBtn.onclick = async () => {
-    const userId = localStorage.getItem('elio_user_id') || generateUserId();
-    const cardToken = localStorage.getItem('elio_card_token');
-    if (cardToken) {
-      const { error } = await window.supabaseClient
-        .from('user_tokens')
-        .insert({ user_id: userId, token: cardToken });
-      if (error) {
-        console.error(error);
-        alert('Failed to save token.');
-      } else {
-        console.log('Token saved');
-        localStorage.removeItem('elio_card_token');
-      }
-    } else {
-      alert('No card token found to save.');
-    }
-    hideCard(tokenCard);
-  };
-
-  skipBtn.onclick = () => {
-    hideCard(tokenCard);
-  };
-  showCard(tokenCard);
-}
-
-function generateUserId() {
-  const id = 'user_' + Math.random().toString(36).slice(2, 11);
-  localStorage.setItem('elio_user_id', id);
-  return id;
 }
 
 async function processPayment(amount, tx_ref = null) {
@@ -471,21 +385,18 @@ async function processPayment(amount, tx_ref = null) {
     const data = await response.json();
     if (!data.success) throw new Error('Backend error');
 
+    // 🔧 Fix: removed dead paymentComplete listener – the checkoutPromise resolves on its own.
     return new Promise((resolve) => {
       FlutterwaveCheckout({
-        public_key: 'FLWPUBK_TEST-xxxxxxxxxxxxx', // placeholder – replace later
+        public_key: 'FLWPUBK_TEST-6c117d2b73a2d0aee2a31c4a6826eea9-X',
         tx_ref: data.data.tx_ref,
         amount: amount,
         currency: 'USD',
         payment_options: 'card',
-        redirect_url: window.location.href,
-        customer: {
-          email: 'user@example.com',
-          name: 'Elio User'
-        },
+        customer: { email: 'user@example.com', name: 'Elio User' },
         customizations: {
           title: 'Elio Session Payment',
-          description: `For the price of a coffee, you get 30 minutes of compassionate listening.`
+          description: 'For the price of a coffee, you get 30 minutes of compassionate listening.'
         },
         callback: (response) => {
           console.log('Payment success', response);
@@ -503,43 +414,43 @@ async function processPayment(amount, tx_ref = null) {
 }
 
 // ------------------------------------------------------------
-// 7. REALTIME LISTENER & BROADCAST
+// 6. REALTIME LISTENER & BROADCAST
 // ------------------------------------------------------------
 function listenForStartSignal() {
   const sessionToken = localStorage.getItem('elio_session_token');
-  if (!sessionToken) {
-    console.warn('No session token, cannot listen');
-    return;
-  }
-  if (sessionChannel) return; // already listening
+  if (!sessionToken || sessionChannel) return;
 
   sessionChannel = window.supabaseClient.channel(`session:${sessionToken}`);
 
-  // Start signal from admin
-  sessionChannel.on('broadcast', { event: 'start-session' }, () => {
+  sessionChannel.on('broadcast', { event: 'start-session' }, (payload) => {
     console.log('start-session received');
+    const startTime = payload?.startTime || Date.now();
     document.getElementById('welcome').style.display = 'none';
     document.getElementById('countdown').style.display = 'none';
     document.getElementById('chat').style.display = 'flex';
     document.getElementById('inputWrap').style.display = 'flex';
     const bookNowBtn = document.getElementById('bookNowBtn');
     if (bookNowBtn) bookNowBtn.style.display = 'none';
-    startUserSessionTimer();
+    localStorage.setItem('elio_session_active', 'true');   // 🔧 Fix: set active flag
+    startUserSessionTimer(startTime + 30 * 60 * 1000);
   });
 
-  // End signal from admin
   sessionChannel.on('broadcast', { event: 'end-session' }, (payload) => {
     showAdminEndedSession(payload?.reason || 'The listener has ended the session.');
   });
 
-  // Timer sync: admin paused
   sessionChannel.on('broadcast', { event: 'timer-paused' }, () => {
     handleAdminTimerPaused();
   });
 
-  // Timer sync: admin resumed
   sessionChannel.on('broadcast', { event: 'timer-resumed' }, () => {
     handleAdminTimerResumed();
+  });
+
+  sessionChannel.on('broadcast', { event: 'listener-disconnected' }, () => {
+    if (typeof createBubble === 'function') {
+      createBubble('Listener has disconnected.', 'system');
+    }
   });
 
   sessionChannel.subscribe((status) => {
@@ -564,20 +475,30 @@ function cleanupSessionChannel() {
 }
 
 // ------------------------------------------------------------
-// 8. GLOBAL EXPOSURE (keep existing)
+// 7. DISCONNECT NOTIFICATION
+// ------------------------------------------------------------
+window.addEventListener('beforeunload', () => {
+  if (sessionChannel && userSessionEndTime) {
+    broadcastEvent('user-disconnected', {});
+  }
+});
+
+// ------------------------------------------------------------
+// 8. GLOBAL EXPOSURE
 // ------------------------------------------------------------
 window.startUserSessionTimer = startUserSessionTimer;
 window.stopUserSessionTimer = () => {
-  pauseLocal();
+  stopTimerTick();
   timerBar.style.display = 'none';
 };
 window.extendUserSession = (minutes) => {
-  userSessionSeconds += minutes * 60;
-  updateUserTimerDisplay();
-  hasShownExtensionPrompt = false;
+  if (userSessionEndTime) {
+    userSessionEndTime += minutes * 60 * 1000;
+    updateUserTimerDisplay();
+    hasShownExtensionPrompt = false;
+  }
 };
 
-// User manually ends session via button
 const userEndBtn = document.getElementById('userEndSessionBtn');
 if (userEndBtn) {
   userEndBtn.addEventListener('click', () => {
@@ -590,8 +511,23 @@ if (userEndBtn) {
 function showWaitingState() {
   if (timerBar) {
     timerBar.style.display = 'flex';
-    timerDisplay.textContent = 'Waiting…';
+    if (timerDisplay) {
+      timerDisplay.textContent = 'Waiting…';
+    }
   }
   const endBtn = document.getElementById('userEndSessionBtn');
   if (endBtn) endBtn.style.display = 'inline-block';
 }
+
+// Restore timer if session was active and end time is saved
+(function restoreTimerOnReload() {
+  if (localStorage.getItem('elio_session_active') === 'true') {
+    const savedEndTime = parseInt(localStorage.getItem('elio_session_end_time'));
+    if (savedEndTime && savedEndTime > Date.now()) {
+      startUserSessionTimer(savedEndTime);
+    } else {
+      localStorage.removeItem('elio_session_active');
+      localStorage.removeItem('elio_session_end_time');
+    }
+  }
+})();
