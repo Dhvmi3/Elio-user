@@ -79,7 +79,7 @@ const introMessages = [
   "When you arrive, just say hi. Seriously, that’s all. Your listener is already there, ready to meet you where you are.",
   "For the price of a coffee. 30 minutes of real listening· No account needed.",
   "One last thing. Elio is a listening ear, not a substitute for therapy or crisis support. If you're in real danger, please reach out to a professional available in your country as we're not a trained therapist.",
-  "Pls do get help if you're in danger, I'll love to help but I am not licensed to do so and I don't want to get sued."
+  "Pls do get help if you're in danger, I'll love to help  but I'm not a licensed therapist and I don't want to pretend to be. Please reach out to a professional if things get serious."
 ];
 
 const TYPING_DELAY = 2000;
@@ -150,7 +150,7 @@ function addListenerWelcomeMessage() {
   wrap.classList.add('bubble-wrap', 'received');
   const bubble = document.createElement('div');
   bubble.classList.add('bubble');
-  bubble.textContent = "Hi, welcome. I'm here to listen. How are you feeling today?";
+  bubble.textContent = "Hi, welcome. Say hello whenever you're ready. I'm here";
   wrap.appendChild(bubble);
   chatContainer.appendChild(wrap);
   wrap.scrollIntoView({ behavior: 'smooth', block: 'end' });

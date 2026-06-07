@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   
   <!-- SEO & Social -->
-  <title>Elio — Your Human Chatbot · Anonymous Listening Sessions</title>
+  <title>Elio - Your Human Chatbot · Anonymous Listening Sessions</title>
   <meta name="description" content="Elio is a safe, anonymous space where you can talk to a real human listener. No accounts, no history, no judgment. Book a 30‑minute session for the price of a coffee." />
   <link rel="canonical" href="https://chatwithelio.netlify.app" />
   
-  <meta property="og:title" content="Elio — Your Human Chatbot" />
+  <meta property="og:title" content="Elio - Your Human Chatbot" />
   <meta property="og:description" content="Say the things you can't say anywhere else. A real human is on the other side." />
   <meta property="og:url" content="https://chatwithelio.netlify.app" />
   <meta property="og:type" content="website" />
@@ -19,7 +19,7 @@
   <meta property="og:image:alt" content="Elio – anonymous listening" />
 
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Elio — Your Human Chatbot" />
+  <meta name="twitter:title" content="Elio - Your Human Chatbot" />
   <meta name="twitter:description" content="Say the things you can't say anywhere else. Real human. 30 minutes. Anonymous." />
   <meta name="twitter:image" content="https://elio-user.netlify.app/elio-og-image.png" />
 
@@ -42,7 +42,7 @@
       <a data-panel="rules">Rules</a>
       <a data-panel="refund">Refund Policy</a>
       <a data-panel="privacy">Privacy Policy</a>
-      <a data-action="book">Book a Session</a>
+      <a data-action="book">Talk to a human</a>
     </nav>
     <p class="sidebar-footer">
       <span class="dot"></span>
@@ -60,7 +60,7 @@
     <h1>About Elio</h1>
     <p>Elio is a safe, anonymous space where you can say the things you can't say anywhere else. No accounts. No history. No judgment.</p>
     <p>On the other side of every conversation is a real human listening, present, and genuinely there for you.</p>
-    <p>We don't know who you are — and we never will. Every session is treated as a completely new person. Nothing follows you.</p>
+    <p>We don't know who you are and we never will. Every session is treated as a completely new person. Nothing follows you.</p>
     <p>Every session ends and disappears. Nothing is stored. Nothing follows you.</p>
   </div>
 
@@ -92,15 +92,15 @@
     <p>Elio is built on anonymity. Here is exactly what we do and don't store.</p>
     <h2>What we never store</h2>
     <ul>
-      <li>Your messages — they exist only during the session (they are temporarily held so you can pick up where you left off if you refresh; they are permanently deleted once the session ends).</li>
-      <li>Your name — even if you provide one, it's forgotten after the session</li>
-      <li>Your identity — no account, no profile, no trace</li>
-      <li>Your payment card details — we never see them; they go directly to our payment processor</li>
+      <li>Your messages - they exist only during the session (they are temporarily held so you can pick up where you left off if you refresh; they are permanently deleted once the session ends).</li>
+      <li>Your name - even if you provide one, it's forgotten after the session</li>
+      <li>Your identity - no account, no profile, no trace</li>
+      <li>Your payment card details - we never see them; they go directly to our payment processor</li>
     </ul>
     <h2>What we do store</h2>
     <ul>
-      <li>Session duration and payment amount — for our own records only</li>
-      <li>Your rating and feedback — anonymously, with no link to you</li>
+      <li>Session duration and payment amount - for our own records only</li>
+      <li>Your rating and feedback - anonymously, with no link to you</li>
     </ul>
     <h2>Anonymity is absolute</h2>
     <p>We don't know who you are. Every time you book a session, you are a brand new person to us. There is no way to connect one session to another.</p>
@@ -156,10 +156,7 @@
       <div class="session-timer-bar" id="sessionTimerBar" style="display: none;">
         <span class="timer-label">Time left</span>
         <span class="timer-display" id="sessionTimerDisplay">30:00</span>
-        <button id="userEndSessionBtn" style="margin-left: auto; background: none; border: none; color: var(--primary); cursor: pointer; font-size: 13px;">End</button>
-      </div>
-      <div id="paymentIndicator" style="display: none; text-align: center; padding: 8px; font-style: italic; color: var(--primary);">
-        Payment in progress — timer paused
+        <button id="userEndSessionBtn" style="margin-left: auto; background: none; border: none; color: var(--primary); cursor: pointer; font-size: 13px;">Leave session</button>
       </div>
     </div>
   </main>
@@ -167,7 +164,7 @@
   <!-- INPUT BAR -->
   <div class="input-bar" id="inputBar">
     <button class="card-btn primary" id="bookNowBtn" style="max-width: 300px; margin: 0 auto; display: block;">
-      Book a Session
+      Talk to a human
     </button>
     <div class="input-wrap" id="inputWrap" style="display: none;">
       <input type="text" class="msg-input" id="msgInput" placeholder="Say anything..." />
@@ -182,26 +179,33 @@
   <!-- POPUP CARDS -->
   <!-- Booking Card -->
   <div class="card" id="bookCard">
-    <p class="card-title">Book a Session</p>
+    <p class="card-title">Talk to a human</p>
     <p class="card-sub">Choose a date and time that works for you</p>
     <label for="bookDate" class="book-label">Date</label>
     <input type="date" id="bookDate" class="book-input" />
     <label for="bookTime" class="book-label">Time</label>
     <select id="bookTime" class="book-input">
-      <option>Pick a date first</option>
+      <option>Choose a date above first</option>
     </select>
     <p class="card-sub" style="margin-top: 4px;">For the price of a coffee, you get 30 minutes of genuine listening.</p><br>
-    <button class="card-btn primary" id="bookConfirm">Reserve & Pay $5</button>
-    <button class="card-btn ghost" id="bookCancel">Cancel</button>
+    <button class="card-btn primary" id="bookConfirm">Book my session for $5</button>
+    <button class="card-btn ghost" id="bookCancel">Nevermind</button>
     <p class="vpn-warning">⚠️ Please disable VPNs as they can show the wrong time zone.</p>
   </div>
 
   <!-- Payment Card -->
   <div class="card" id="payCard">
-    <p class="card-title">Continue the conversation</p>
+    <p class="card-title">Want to keep going?</p>
     <p class="card-sub">Continue this conversation for the price of a coffee.</p>
     <button class="card-btn primary" id="payBtn">Pay $5</button>
     <button class="card-btn ghost" id="payDecline">Not now</button>
+  </div>
+
+  <!-- Continue Session Card (after successful payment) -->
+  <div class="card" id="continueCard">
+    <p class="card-title">Payment successful</p>
+    <p class="card-sub">Click continue to resume your session.</p>
+    <button class="card-btn primary" id="continueSessionBtn">Continue session</button>
   </div>
 
   <!-- Extension Card -->
@@ -209,13 +213,13 @@
     <p class="card-title">Keep going?</p>
     <p class="card-sub">For another coffee, add 30 minutes to your session.</p>
     <button class="card-btn primary" id="extBtn">Extend</button>
-    <button class="card-btn ghost" id="extDecline">End session</button>
+    <button class="card-btn ghost" id="extDecline">Are you sure you want to leave?</button>
   </div>
 
   <!-- Session Ended Card -->
   <div class="card" id="endCard">
-    <p class="card-title">This session has ended.</p>
-    <p class="card-sub">Come back anytime.</p>
+    <p class="card-title">That's a wrap, take care of yourself</p>
+    <p class="card-sub">You're always welcome back.</p>
     <div class="hearts" id="hearts">
       <span class="heart" data-val="1">♡</span>
       <span class="heart" data-val="2">♡</span>
@@ -223,8 +227,8 @@
       <span class="heart" data-val="4">♡</span>
       <span class="heart" data-val="5">♡</span>
     </div>
-    <textarea class="feedback" id="feedback" placeholder="How can we improve? (optional)"></textarea>
-    <button class="card-btn primary" id="submitFeedback">Done</button>
+    <textarea class="feedback" id="feedback" placeholder="Anything you'd like us to know? (optional)"></textarea>
+    <button class="card-btn primary" id="submitFeedback">All done</button>
   </div>
 
   <!-- Supabase client -->

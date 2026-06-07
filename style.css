@@ -608,7 +608,7 @@ body {
   30%           { transform: translateY(-6px); opacity: 1; }
 }
 
-/* ─── Book Now — fades in after intro ───────────── */
+/* ─── Book Now fades in after intro ───────────── */
 #bookNowBtn {
   opacity: 0;
   transform: translateY(8px);
