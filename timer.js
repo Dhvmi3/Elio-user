@@ -577,7 +577,7 @@ function showWaitingState() {
   if (timerBar) {
     timerBar.style.display = 'flex';
     if (timerDisplay) {
-      timerDisplay.textContent = 'Getting ready for you…';
+      timerDisplay.textContent = ': Waiting…';
     }
   }
   const endBtn = document.getElementById('userEndSessionBtn');
