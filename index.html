@@ -44,10 +44,6 @@
       <a data-panel="privacy">Privacy Policy</a>
       <a data-action="book">Talk to a human</a>
     </nav>
-    <p class="sidebar-footer">
-      <span class="dot"></span>
-      Take a deep breath. You're in a safe space.
-    </p>
   </aside>
 
   <!-- OVERLAY -->
@@ -111,13 +107,11 @@
     <button class="panel-back" data-close="refund">← Back</button>
     <h1>Refund Policy</h1>
     <p>Sessions are priced at $5 for 30 minutes. Extensions are $5 each.</p>
-    <h2>No refunds after minute 5</h2>
-    <p>Once 5 minutes of a session have passed, the session is considered delivered and no refund will be issued.</p>
-    <h2>Genuine emergencies</h2>
-    <p>Refunds for genuine emergencies are issued at Elio's sole discretion. If something urgent came up before minute 5, reach out via the complaints section.</p>
+    <h2>No refunds after payment</h2>
+    <p>Once you’ve paid for a session, it is considered delivered and non‑refundable. The 5‑minute free trial gives you enough time to decide if you want to continue.</p>
     <h2>Declined sessions</h2>
     <p>If you decline payment when prompted, the session ends immediately. No charge is made for the conversation prior to the payment prompt.</p>
-  </div>
+</div>
 
   <!-- TOP BAR -->
   <header class="topbar">
@@ -179,19 +173,21 @@
   <!-- POPUP CARDS -->
   <!-- Booking Card -->
   <div class="card" id="bookCard">
-    <p class="card-title">Talk to a human</p>
-    <p class="card-sub">Choose a date and time that works for you</p>
-    <label for="bookDate" class="book-label">Date</label>
-    <input type="date" id="bookDate" class="book-input" />
-    <label for="bookTime" class="book-label">Time</label>
-    <select id="bookTime" class="book-input">
-      <option>Choose a date above first</option>
-    </select>
-    <p class="card-sub" style="margin-top: 4px;">For the price of a coffee, you get 30 minutes of genuine listening.</p><br>
-    <button class="card-btn primary" id="bookConfirm">Book my session for $5</button>
-    <button class="card-btn ghost" id="bookCancel">Nevermind</button>
-    <p class="vpn-warning">⚠️ Please disable VPNs as they can show the wrong time zone.</p>
-  </div>
+  <p class="card-title">Talk to a human</p>
+  <p class="card-sub">Choose a date and time that works for you</p>
+
+  <label for="bookDate" class="book-label">Date</label>
+  <input type="date" id="bookDate" class="book-input" />
+
+  <label class="book-label">Time</label>
+  <div id="timeSlots" class="time-grid" style="display: none;"></div>
+  <input type="hidden" id="bookTime" />
+
+  <p class="card-sub" style="margin-top: 4px;">For the price of a coffee, you get 30 minutes of genuine listening.</p><br>
+  <button class="card-btn primary" id="bookConfirm">Book my session for $5</button>
+  <button class="card-btn ghost" id="bookCancel">Nevermind</button>
+  <p class="vpn-warning">⚠️ Please disable VPNs as they can show the wrong time zone.</p>
+</div>
 
   <!-- Payment Card -->
   <div class="card" id="payCard">

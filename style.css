@@ -129,14 +129,6 @@ body {
   line-height: 1.5;
 }
 
-.dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--primary);
-  flex-shrink: 0;
-}
-
 /* ─── Top Bar ────────────────────────────────────── */
 .topbar {
   position: fixed;
@@ -279,6 +271,59 @@ body {
   color: var(--text-soft);
   margin: 8px 0 20px;
   line-height: 1.5;
+}
+
+.time-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 10px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px 2px;
+  margin-bottom: 8px;
+}
+
+.time-slot-btn {
+  padding: 10px 6px;
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.45);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  transition: background var(--transition), border var(--transition);
+  text-align: center;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.time-slot-btn:hover:not(:disabled) {
+  background: rgba(139, 92, 246, 0.15);
+  border-color: var(--primary);
+}
+
+.time-slot-btn.selected {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+
+.time-slot-btn.past {
+  opacity: 0.28;
+  cursor: not-allowed;
+  text-decoration: line-through;
+}
+
+.time-slot-btn.full {
+  opacity: 0.40;
+  cursor: not-allowed;
+}
+
+.time-slot-btn:disabled:not(.past):not(.full) {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .timer {

@@ -1,6 +1,28 @@
 // booking.js – User booking, timezone, countdown, and chat init
 
 const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+const MIN_BOOKING_LEAD_MINUTES = 30;   // 👈 30 = test countdown now, 540 = production
+
+// ---- Sync with server clock ----
+let serverTimeOffset = 0;
+
+(async function syncServerTime() {
+  try {
+    const res = await fetch('https://eliobackend.onrender.com/server-time');
+    const data = await res.json();
+    if (data.now) {
+      serverTimeOffset = data.now - Date.now();
+      console.log('Server time offset:', serverTimeOffset, 'ms');
+    }
+  } catch (e) {
+    console.warn('Could not sync server time, using client clock');
+  }
+})();
+
+function serverNow() {
+  return Date.now() + serverTimeOffset;
+}
+
 const timezoneDisplay = document.getElementById('timezoneDisplay');
 if (timezoneDisplay) {
   timezoneDisplay.textContent = `Your time zone: ${userTimezone}`;
@@ -12,7 +34,7 @@ const bookNowBtn  = document.getElementById('bookNowBtn');
 const inputWrap   = document.getElementById('inputWrap');
 const countdown   = document.getElementById('countdown');
 const bookDate    = document.getElementById('bookDate');
-const bookTime    = document.getElementById('bookTime');
+const bookTime    = document.getElementById('bookTime');   // hidden input
 const bookConfirm = document.getElementById('bookConfirm');
 const bookCancel  = document.getElementById('bookCancel');
 
@@ -24,26 +46,50 @@ const secondsEl = document.getElementById('seconds');
 
 let timerInterval = null;
 
-// Minimum date is tomorrow
-const tomorrow = new Date();
-tomorrow.setDate(tomorrow.getDate() + 1);
-bookDate.min = tomorrow.toISOString().split('T')[0];
+// ---- Check if user already has an upcoming session ----
+function hasUpcomingSession() {
+  if (localStorage.getItem('elio_session_active') === 'true') return true;
+  if (localStorage.getItem('elio_session_waiting') === 'true') return true;
+  const savedBooking = localStorage.getItem('elio_session_time');
+  if (savedBooking) {
+    const sessionTime = new Date(savedBooking);
+    if (sessionTime > new Date()) return true;
+  }
+  return false;
+}
 
-// ----- Session State Restoration (fixes refresh/tab-close loss) -----
+// ---- Allow today's date (local, not UTC) ----
+const localToday = new Date();
+const todayLocal = [
+  localToday.getFullYear(),
+  String(localToday.getMonth() + 1).padStart(2, '0'),
+  String(localToday.getDate()).padStart(2, '0')
+].join('-');
+bookDate.min = todayLocal;
+
+// ----- Session State Restoration -----
 const isActiveSession = localStorage.getItem('elio_session_active') === 'true';
+const isWaiting = localStorage.getItem('elio_session_waiting') === 'true';
 const savedToken = localStorage.getItem('elio_session_token');
 
 if (isActiveSession && savedToken) {
-  // Restore chat UI immediately
   welcome.style.display = 'none';
   countdown.style.display = 'none';
   chatContainer.style.display = 'flex';
   if (bookNowBtn) bookNowBtn.style.display = 'none';
   if (inputWrap) inputWrap.style.display = 'flex';
-  listenForStartSignal();                    // reconnect to session channel
-  ChatManager.init(savedToken);             // reload messages & subscribe
+  listenForStartSignal();
+  ChatManager.init(savedToken);
+} else if (isWaiting && savedToken) {
+  welcome.style.display = 'none';
+  countdown.style.display = 'none';
+  chatContainer.style.display = 'flex';
+  if (bookNowBtn) bookNowBtn.style.display = 'none';
+  if (inputWrap) inputWrap.style.display = 'flex';
+  listenForStartSignal();
+  ChatManager.init(savedToken);
+  showWaitingState();
 } else {
-  // Normal flow: check for future booking
   const savedBooking = localStorage.getItem('elio_session_time');
   if (savedBooking) {
     const sessionTime = new Date(savedBooking);
@@ -59,17 +105,37 @@ if (isActiveSession && savedToken) {
   }
 }
 
-// ----- Date change → load available times from backend -----
+// ----- Date change → load available times -----
 bookDate.addEventListener('change', loadSlots);
 async function loadSlots() {
   const date = bookDate.value;
   if (!date) return;
 
-  bookTime.innerHTML = '<option disabled selected>Loading…</option>';
-  bookTime.disabled = true;
+  const grid = document.getElementById('timeSlots');
+  grid.innerHTML = '<span style="color:var(--text-soft);">Loading…</span>';
+  grid.style.display = 'block';
+  bookTime.value = '';
 
-  const possibleTimes = ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00'];
+  // Generate every 30‑minute slot for the full day
+  const possibleTimes = [];
+  for (let h = 0; h < 24; h++) {
+    for (let min of ['00', '30']) {
+      possibleTimes.push(`${String(h).padStart(2, '0')}:${min}`);
+    }
+  }
+
   const MAX_PER_SLOT = 3;
+  const now = serverNow();
+  const earliestBase = new Date(now + MIN_BOOKING_LEAD_MINUTES * 60 * 1000);
+
+  // 🔧 Use LOCAL date to match the date picker – fixes timezone mismatch
+  // Build todayStr from LOCAL date parts to match the date picker value
+  const localNow = new Date(now);
+  const todayStr = [
+    localNow.getFullYear(),
+    String(localNow.getMonth() + 1).padStart(2, '0'),
+    String(localNow.getDate()).padStart(2, '0')
+  ].join('-');
 
   let counts = {};
   try {
@@ -78,62 +144,67 @@ async function loadSlots() {
     if (data.success) counts = data.counts;
   } catch (err) {
     console.error('Failed to load slot availability:', err);
-    // Fall through - treat all slots as available if fetch fails
   }
 
-  bookTime.innerHTML = '<option value="" disabled selected>Select a time…</option>';
+  grid.innerHTML = '';
   let anyAvailable = false;
 
   possibleTimes.forEach(t => {
-    const slotISO = `${date}T${t}`;       
-    const booked  = counts[slotISO] || 0;
+    const slotISO = `${date}T${t}`;
+    const slotDate = new Date(`${slotISO}:00`);
+
+    const isPast = date < todayStr || (date === todayStr && slotDate < earliestBase);
+
+    const booked = counts[slotISO] || 0;
     const spotsLeft = MAX_PER_SLOT - booked;
     const full = spotsLeft <= 0;
 
-    const timePart = new Date(`${slotISO}:00`).toLocaleTimeString([], {
-      hour: '2-digit', minute: '2-digit'
-    });
+    const timePart = slotDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'time-slot-btn';
+    btn.textContent = timePart;
+    btn.dataset.value = `${slotISO}:00`;
 
-    const option = document.createElement('option');
-    option.value = `${slotISO}:00`;     
-
-    if (full) {
-      option.textContent = `${timePart} - Full`;
-      option.disabled = true;
-      option.style.color = '#bbb';
+    if (isPast) {
+      btn.disabled = true;
+      btn.classList.add('past');
+    } else if (full) {
+      btn.disabled = true;
+      btn.textContent += ' · taken';
+      btn.classList.add('full');
     } else {
-      option.textContent = spotsLeft === 1
-        ? `${timePart} - 1 spot left`
-        : `${timePart}`;
+      if (spotsLeft === 1) btn.textContent += ' · 1 left';
       anyAvailable = true;
+      btn.addEventListener('click', () => {
+        grid.querySelectorAll('.time-slot-btn.selected').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        bookTime.value = btn.dataset.value;
+      });
     }
 
-    bookTime.appendChild(option);
+    grid.appendChild(btn);
   });
 
   if (!anyAvailable) {
-    bookTime.innerHTML = '<option disabled selected>No spots available for this date</option>';
+    grid.innerHTML = '<span style="color:var(--text-soft);">No spots available for this date</span>';
   }
-
-  bookTime.disabled = false;
 }
 
 // ----- Confirm booking -----
 bookConfirm.addEventListener('click', async () => {
-  if (localStorage.getItem('elio_session_active') === 'true' || chatContainer.style.display === 'flex') {
-    alert('You\'re still in a session. End it first, then come back.');
+  if (hasUpcomingSession()) {
+    alert('You already have an upcoming session. Please wait for it to finish or end it first.');
     return;
   }
 
   const slotTime = bookTime.value;
   if (!slotTime || slotTime === '') return alert('Pick a time first.');
 
-  const sessionToken = (typeof crypto !== 'undefined' && crypto.randomUUID)
-    ? crypto.randomUUID()
-    : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
-        const r = Math.random() * 16 | 0;
-        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
-      });
+  const sessionToken = crypto.randomUUID?.() ?? 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
   const bookingDateTime = new Date(slotTime);
 
   bookConfirm.disabled = true;
@@ -143,20 +214,15 @@ bookConfirm.addEventListener('click', async () => {
     const res = await fetch('https://eliobackend.onrender.com/create-booking', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        token: sessionToken,
-        booking_time: bookingDateTime.toISOString(),
-        timezone: userTimezone
-      })
+      body: JSON.stringify({ token: sessionToken, booking_time: bookingDateTime.toISOString(), timezone: userTimezone })
     });
 
     const data = await res.json();
 
     if (!data.success) {
-      // Slot filled up between them loading times and clicking confirm
       if (res.status === 409) {
         alert('That spot just got taken. Please pick another time.');
-        await loadSlots(); // refresh the dropdown to show updated availability
+        await loadSlots();
       } else {
         alert('Booking failed: ' + (data.message || 'Please try again.'));
       }
@@ -177,32 +243,23 @@ bookConfirm.addEventListener('click', async () => {
   hideCard(bookCard);
   bookConfirm.disabled = false;
   bookConfirm.textContent = 'Book my session for $5';
-
-  // TEST MODE (skip countdown) – will be removed for production
-  welcome.style.display = 'none';
-  countdown.style.display = 'none';
-  chatContainer.style.display = 'flex';
-  if (bookNowBtn) bookNowBtn.style.display = 'none';
-  if (inputWrap) inputWrap.style.display = 'flex';
-  localStorage.removeItem('elio_session_time');          // countdown not needed in test mode
-  localStorage.setItem('elio_session_active', 'true');   // mark session active for reloads
+  showCountdown(bookingDateTime);
   listenForStartSignal();
-  ChatManager.init(sessionToken);
-  showWaitingState();                             
+  showWaitingState();
 });
 
-// ----- Cancel button -----
 bookCancel.addEventListener('click', () => hideCard(bookCard));
 
 // ----- Open booking card -----
 function openBookingCard() {
-  if (localStorage.getItem('elio_session_active') === 'true' || chatContainer.style.display === 'flex') {
-    alert('You\'re in a session right now.');
+  if (hasUpcomingSession()) {
+    alert('You already have an upcoming session. Please wait for it to finish or end it first.');
     return;
-}
+  }
   bookDate.value = '';
-  bookTime.innerHTML = '<option>Choose a date above first</option>';
-  bookTime.disabled = false;
+  document.getElementById('timeSlots').innerHTML = '';
+  document.getElementById('timeSlots').style.display = 'none';
+  bookTime.value = '';
   showCard(bookCard);
 }
 
@@ -227,14 +284,13 @@ function showCountdown(sessionTime) {
 }
 
 function updateTimerDisplay(sessionTime) {
-  const now = new Date();
+  const now = new Date(serverNow());
   const diff = sessionTime - now;
   if (diff <= 0) {
     clearInterval(timerInterval);
     localStorage.removeItem('elio_session_time');
-    // Do NOT set elio_session_active here the session hasn't actually started yet.
-    // It gets set inside listenForStartSignal() when the admin sends the first message
-    // and the 'start-session' broadcast arrives.
+    localStorage.setItem('elio_session_waiting', 'true');
+
     welcome.style.display = 'none';
     countdown.style.display = 'none';
     chatContainer.style.display = 'flex';
@@ -249,6 +305,7 @@ function updateTimerDisplay(sessionTime) {
     }
     return;
   }
+
   sessionTimeUserEl.textContent = `Your session: ${sessionTime.toLocaleString(undefined, {
     dateStyle: 'full',
     timeStyle: 'short',
