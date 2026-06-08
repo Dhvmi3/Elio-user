@@ -109,7 +109,7 @@ function startTimerTick() {
       return;
     }
 
-    if (!hasShownFirstPayment && remaining <= 1680) {
+    if (!hasShownFirstPayment && remaining <= 1500) {
       hasShownFirstPayment = true;
       showPaymentCardForInitial();
     }
