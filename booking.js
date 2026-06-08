@@ -108,7 +108,7 @@ if (isActiveSession && savedToken) {
 // ----- Date change → load available times -----
 bookDate.addEventListener('change', loadSlots);
 async function loadSlots() {
-  const date = bookDate.value;
+  const date = bookDate.value; // YYYY-MM-DD in the user's local timezone (matches the date picker)
   if (!date) return;
 
   const grid = document.getElementById('timeSlots');
@@ -116,55 +116,42 @@ async function loadSlots() {
   grid.style.display = 'block';
   bookTime.value = '';
 
-  // Generate every 30‑minute slot for the full day
-  const possibleTimes = [];
-  for (let h = 0; h < 24; h++) {
-    for (let min of ['00', '30']) {
-      possibleTimes.push(`${String(h).padStart(2, '0')}:${min}`);
-    }
-  }
-
-  const MAX_PER_SLOT = 3;
   const now = serverNow();
-  const earliestBase = new Date(now + MIN_BOOKING_LEAD_MINUTES * 60 * 1000);
+  const earliestBase = now + MIN_BOOKING_LEAD_MINUTES * 60 * 1000;
 
-  // 🔧 Use LOCAL date to match the date picker – fixes timezone mismatch
-  // Build todayStr from LOCAL date parts to match the date picker value
-  const localNow = new Date(now);
-  const todayStr = [
-    localNow.getFullYear(),
-    String(localNow.getMonth() + 1).padStart(2, '0'),
-    String(localNow.getDate()).padStart(2, '0')
-  ].join('-');
-
-  let counts = {};
+  let slots = [];
   try {
-    const res = await fetch(`https://eliobackend.onrender.com/slot-counts?date=${date}`);
+    // date is sent as WAT date — the server generates slots in WAT and returns UTC
+    const res = await fetch(`https://eliobackend.onrender.com/slots?date=${date}`);
     const data = await res.json();
-    if (data.success) counts = data.counts;
+    if (data.success) slots = data.slots;
   } catch (err) {
-    console.error('Failed to load slot availability:', err);
+    console.error('Failed to load slots:', err);
+    grid.innerHTML = '<span style="color:var(--text-soft);">Could not load times. Please try again.</span>';
+    return;
   }
 
   grid.innerHTML = '';
   let anyAvailable = false;
 
-  possibleTimes.forEach(t => {
-    const slotISO = `${date}T${t}`;
-    const slotDate = new Date(`${slotISO}:00`);
+  slots.forEach(slot => {
+    const slotMs = new Date(slot.utc).getTime();
 
-    const isPast = date < todayStr || (date === todayStr && slotDate < earliestBase);
+    // Past or within lead time — show greyed out
+    const isPast = slotMs < earliestBase;
+    const full = !slot.available;
+    const spotsLeft = 3 - slot.booked;
 
-    const booked = counts[slotISO] || 0;
-    const spotsLeft = MAX_PER_SLOT - booked;
-    const full = spotsLeft <= 0;
+    // Display time in the USER's local timezone
+    const timePart = new Date(slot.utc).toLocaleTimeString([], {
+      hour: '2-digit', minute: '2-digit'
+    });
 
-    const timePart = slotDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'time-slot-btn';
     btn.textContent = timePart;
-    btn.dataset.value = `${slotISO}:00`;
+    btn.dataset.value = slot.utc; // store UTC — sent directly to backend
 
     if (isPast) {
       btn.disabled = true;
@@ -179,7 +166,7 @@ async function loadSlots() {
       btn.addEventListener('click', () => {
         grid.querySelectorAll('.time-slot-btn.selected').forEach(b => b.classList.remove('selected'));
         btn.classList.add('selected');
-        bookTime.value = btn.dataset.value;
+        bookTime.value = slot.utc; // UTC goes straight to the backend
       });
     }
 
@@ -187,7 +174,7 @@ async function loadSlots() {
   });
 
   if (!anyAvailable) {
-    grid.innerHTML = '<span style="color:var(--text-soft);">No spots available for this date</span>';
+    grid.innerHTML = '<span style="color:var(--text-soft);">No openings on this day</span>';
   }
 }
 
@@ -214,7 +201,8 @@ bookConfirm.addEventListener('click', async () => {
     const res = await fetch('https://eliobackend.onrender.com/create-booking', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: sessionToken, booking_time: bookingDateTime.toISOString(), timezone: userTimezone })
+  // slotTime is already a UTC ISO string from the /slots endpoint
+  body: JSON.stringify({ token: sessionToken, booking_time: slotTime, timezone: userTimezone })
     });
 
     const data = await res.json();
