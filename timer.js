@@ -78,7 +78,7 @@ let hasShownFirstPayment = false;
 let hasShownExtensionPrompt = false;
 let sessionChannel = null;
 let isTimerPaused = false;
-let isPaymentInProgress = false; // blocks auto-resume while payment card or continue card is open
+let isPaymentInProgress = false;
 
 const timerBar = document.getElementById('sessionTimerBar');
 const timerDisplay = document.getElementById('sessionTimerDisplay');
@@ -132,7 +132,6 @@ function pauseUserTimer() {
   if (isTimerPaused) return;
   isTimerPaused = true;
   stopTimerTick();
-  // Save exactly when we paused so we can compensate on resume
   localStorage.setItem('elio_timer_paused', 'true');
   localStorage.setItem('elio_timer_paused_at', Date.now().toString());
   localStorage.removeItem('elio_auto_paused');
@@ -142,7 +141,6 @@ function pauseUserTimer() {
 function resumeUserTimer() {
   if (!isTimerPaused) return;
 
-  // Shift endTime forward by however long we were paused
   const pausedAt = parseInt(localStorage.getItem('elio_timer_paused_at'));
   if (pausedAt && userSessionEndTime) {
     const pausedDuration = Date.now() - pausedAt;
@@ -155,7 +153,7 @@ function resumeUserTimer() {
   localStorage.removeItem('elio_timer_paused_at');
   updateUserTimerDisplay();
   startTimerTick();
-  broadcastEvent('timer-resumed');
+  broadcastEvent('timer-resumed', { endTime: userSessionEndTime });
 }
 
 // ---- Page Visibility – pause when user leaves tab, auto-resume when they return ----
@@ -170,12 +168,9 @@ document.addEventListener('visibilitychange', () => {
       broadcastEvent('timer-paused');
     }
   } else {
-    // User came back — auto-resume if we were the ones who auto-paused it
-    // BUT not if a payment card is still open — resumeUserTimer is called
-    // explicitly when the user clicks "Continue session"
     if (isTimerPaused && localStorage.getItem('elio_auto_paused') === 'true' && !isPaymentInProgress) {
       localStorage.removeItem('elio_auto_paused');
-      resumeUserTimer(); // this shifts endTime and broadcasts timer-resumed
+      resumeUserTimer();
     }
   }
 });
@@ -300,23 +295,18 @@ function handleAdminTimerResumed() {
 // ------------------------------------------------------------
 // 5. PAYMENT CARDS (no payment indicator, new Continue Session card)
 // ------------------------------------------------------------
-
-// Remove old hideTimerForPayment / showTimerAfterPayment functions
-
-// New Continue Session card
 function showContinueCard() {
   const continueCard = document.getElementById('continueCard');
   if (continueCard) showCard(continueCard);
 }
 
-// Wire the continue button (runs once)
 document.addEventListener('DOMContentLoaded', () => {
   const btn = document.getElementById('continueSessionBtn');
   if (btn) {
     btn.addEventListener('click', () => {
       hideCard(document.getElementById('continueCard'));
       isPaymentInProgress = false;
-      resumeUserTimer();   // resumes both sides
+      resumeUserTimer();
     });
   }
 });
@@ -335,7 +325,7 @@ function showPaymentCardForInitial() {
       const success = await processPayment(5);
       if (success) {
         hideCard(payCard);
-        showContinueCard();   // User must click "Continue session"
+        showContinueCard();
       } else {
         alert('Payment failed. Please try again or use another card.');
         hideCard(payCard);
@@ -380,7 +370,7 @@ function showPaymentRetryCard() {
     hideCard(retryCard);
     const success = await processPayment(5);
     if (success) {
-      showContinueCard();   // manual resume after retry success
+      showContinueCard();
     } else {
       endSessionDueToTimeout();
     }
@@ -407,19 +397,19 @@ function showExtensionPrompt() {
     if (success) {
       hideCard(extCard);
       if (window.extendUserSession) window.extendUserSession(30);
-      showContinueCard();   // manual resume after extension payment
+      showContinueCard();
     } else {
       alert('Payment failed. Session will end when timer reaches 0.');
       hideCard(extCard);
       isPaymentInProgress = false;
-      resumeUserTimer();   // if extension fails, resume without extending
+      resumeUserTimer();
     }
   };
 
   declineBtn.onclick = () => {
     hideCard(extCard);
     isPaymentInProgress = false;
-    resumeUserTimer();   // decline extension -> just resume
+    resumeUserTimer();
   };
   showCard(extCard);
 }
@@ -503,6 +493,16 @@ function listenForStartSignal() {
     }
   });
 
+  // 👇 NEW: listen for session extensions from the admin
+  sessionChannel.on('broadcast', { event: 'session-extended' }, (payload) => {
+    if (payload?.newEndTime) {
+      userSessionEndTime = payload.newEndTime;
+      localStorage.setItem('elio_session_end_time', userSessionEndTime);
+      updateUserTimerDisplay();
+      hasShownExtensionPrompt = false;   // allow another extension prompt if needed
+    }
+  });
+
   sessionChannel.subscribe((status) => {
     if (status === 'SUBSCRIBED') console.log('Listening on session channel');
   });
@@ -541,11 +541,18 @@ window.stopUserSessionTimer = () => {
   stopTimerTick();
   timerBar.style.display = 'none';
 };
+
+// 👇 CHANGED: broadcasts the new end time to the admin
 window.extendUserSession = (minutes) => {
   if (userSessionEndTime) {
     userSessionEndTime += minutes * 60 * 1000;
+    localStorage.setItem('elio_session_end_time', userSessionEndTime);
     updateUserTimerDisplay();
     hasShownExtensionPrompt = false;
+    broadcastEvent('session-extended', {
+      addedMinutes: minutes,
+      newEndTime: userSessionEndTime
+    });
   }
 };
 
@@ -577,13 +584,10 @@ function showWaitingState() {
     const pausedAt = parseInt(localStorage.getItem('elio_timer_paused_at'));
 
     if (savedEndTime && savedEndTime > Date.now()) {
-      // If it was paused before the page closed/refreshed, the endTime
-      // has been frozen — shift it forward by the time elapsed while closed
       let adjustedEndTime = savedEndTime;
       if (wasPaused && pausedAt) {
         const pausedDuration = Date.now() - pausedAt;
         adjustedEndTime = savedEndTime + pausedDuration;
-        // Update pausedAt to now so a future resume compensates correctly
         localStorage.setItem('elio_timer_paused_at', Date.now().toString());
         localStorage.setItem('elio_session_end_time', adjustedEndTime);
       }
