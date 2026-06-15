@@ -1,7 +1,7 @@
 // booking.js – User booking, timezone, countdown, and chat init
 
 const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-const MIN_BOOKING_LEAD_MINUTES = 30;   // 👈 30 = test countdown now, 540 = production
+const MIN_BOOKING_LEAD_MINUTES = 540;  
 
 // ---- Sync with server clock ----
 let serverTimeOffset = 0;
@@ -34,7 +34,7 @@ const bookNowBtn  = document.getElementById('bookNowBtn');
 const inputWrap   = document.getElementById('inputWrap');
 const countdown   = document.getElementById('countdown');
 const bookDate    = document.getElementById('bookDate');
-const bookTime    = document.getElementById('bookTime');   // hidden input
+const bookTime    = document.getElementById('bookTime'); 
 const bookConfirm = document.getElementById('bookConfirm');
 const bookCancel  = document.getElementById('bookCancel');
 
@@ -72,7 +72,19 @@ const isActiveSession = localStorage.getItem('elio_session_active') === 'true';
 const isWaiting = localStorage.getItem('elio_session_waiting') === 'true';
 const savedToken = localStorage.getItem('elio_session_token');
 
-if (isActiveSession && savedToken) {
+// Guard: if either active/waiting flag is set but there's no token, the state
+// is stale (session ended without a full cleanup). Wipe it and start fresh.
+if ((isActiveSession || isWaiting) && !savedToken) {
+  localStorage.removeItem('elio_session_active');
+  localStorage.removeItem('elio_session_waiting');
+  localStorage.removeItem('elio_session_time');
+  localStorage.removeItem('elio_session_end_time');
+  localStorage.removeItem('elio_timer_paused');
+  localStorage.removeItem('elio_timer_paused_at');
+  localStorage.removeItem('elio_auto_paused');
+  localStorage.removeItem('elio_card_token');
+  showWelcome();
+} else if (isActiveSession && savedToken) {
   welcome.style.display = 'none';
   countdown.style.display = 'none';
   chatContainer.style.display = 'flex';
@@ -181,7 +193,7 @@ async function loadSlots() {
 // ----- Confirm booking -----
 bookConfirm.addEventListener('click', async () => {
   if (hasUpcomingSession()) {
-    alert('You already have an upcoming session. Please wait for it to finish or end it first.');
+    alert('You already have an upcoming conversation. Please wait for it to finish or end it first.');
     return;
   }
 
@@ -215,14 +227,14 @@ bookConfirm.addEventListener('click', async () => {
         alert('Booking failed: ' + (data.message || 'Please try again.'));
       }
       bookConfirm.disabled = false;
-      bookConfirm.textContent = 'Book my session for $5';
+      bookConfirm.textContent = 'Schedule a conversation for $5';
       return;
     }
   } catch (err) {
     console.error(err);
     alert('Something went wrong on our end. Check your connection and try again.');
     bookConfirm.disabled = false;
-    bookConfirm.textContent = 'Book my session for $5';
+    bookConfirm.textContent = 'Schedule a conversation';
     return;
   }
 
@@ -230,7 +242,7 @@ bookConfirm.addEventListener('click', async () => {
   localStorage.setItem('elio_session_time', slotTime);
   hideCard(bookCard);
   bookConfirm.disabled = false;
-  bookConfirm.textContent = 'Book my session for $5';
+  bookConfirm.textContent = 'Schedule a conversation';
   showCountdown(bookingDateTime);
   listenForStartSignal();
   showWaitingState();
@@ -241,7 +253,7 @@ bookCancel.addEventListener('click', () => hideCard(bookCard));
 // ----- Open booking card -----
 function openBookingCard() {
   if (hasUpcomingSession()) {
-    alert('You already have an upcoming session. Please wait for it to finish or end it first.');
+    alert('You have already scheduled a conversation. Please wait for it to finish or end it first.');
     return;
   }
   bookDate.value = '';
@@ -294,7 +306,7 @@ function updateTimerDisplay(sessionTime) {
     return;
   }
 
-  sessionTimeUserEl.textContent = `Your session: ${sessionTime.toLocaleString(undefined, {
+  sessionTimeUserEl.textContent = `Your conversation: ${sessionTime.toLocaleString(undefined, {
     dateStyle: 'full',
     timeStyle: 'short',
     timeZone: userTimezone

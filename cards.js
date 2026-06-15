@@ -42,9 +42,9 @@ document.getElementById('submitFeedback').addEventListener('click', async () => 
   }
 
   hideCard(endCard);
-  // Stop the session timer
   if (window.stopUserSessionTimer) window.stopUserSessionTimer();
-  // Show the book button again
+  if (window.clearAllSessionStorage) window.clearAllSessionStorage();
+
   const bookBtn = document.getElementById('bookNowBtn');
   if (bookBtn) bookBtn.style.display = 'block';
 });

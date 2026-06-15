@@ -72,11 +72,11 @@ document.querySelectorAll('.bubble-wrap').forEach(b => observer.observe(b));
 const introMessages = [
   "Welcome to Elio, your human chatbot.",
   "Here, you can say the things you never could. The good, the bad, the messy, the weird. All of it is welcome.",
-  "No accounts. No history. No judgment. This session is completely anonymous. (I have no idea who you are because conversations shouldn't be decided by who you are.)",
+  "No accounts. No history. No judgment. These conversations is completely anonymous. (I have no idea who you are because conversations shouldn't be decided by who you are.)",
   "A real human is on the other side, because some conversations need a heartbeat, not an algorithm. (Yes, a human is literally taking AI’s job here.)",
   "Here’s how it works:",
-  "You book a time that fits your life. When your session starts, a timer appears and you have 10 minutes to join. If you’re not here by then, we mark it cancelled, no charge, no awkwardness.",
-  "When you arrive, just say hi. Seriously, that’s all. Your listener is already there, ready to meet you where you are.",
+  "You book a time that fits your life. When your scheduled time reaches, you have 10 minutes to join. If you’re not here by then, we mark it cancelled, no charge, no awkwardness.",
+  "When you arrive, just say hi. Seriously, that’s all.",
   "For the price of a coffee. 30 minutes of real listening· No account needed.",
   "One last thing. Elio is a listening ear, not a substitute for therapy or crisis support. If you're in real danger, please reach out to a professional available in your country as we're not a trained therapist.",
   "Pls do get help if you're in danger, I'll love to help  but I'm not a licensed therapist and I don't want to pretend to be. Please reach out to a professional if things get serious."
@@ -150,7 +150,7 @@ function addListenerWelcomeMessage() {
   wrap.classList.add('bubble-wrap', 'received');
   const bubble = document.createElement('div');
   bubble.classList.add('bubble');
-  bubble.textContent = "Hi, welcome. Say hello whenever you're ready. I'm here";
+  bubble.textContent = "Hi, welcome. Say hello whenever you're ready and let's get this convo started.";
   wrap.appendChild(bubble);
   chatContainer.appendChild(wrap);
   wrap.scrollIntoView({ behavior: 'smooth', block: 'end' });

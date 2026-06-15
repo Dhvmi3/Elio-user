@@ -1,8 +1,6 @@
 // timer.js – User side: timer, payment, realtime chat, and session synchronisation
 
-// ------------------------------------------------------------
 // 1. CHAT MANAGER (ephemeral chat via Supabase messages table)
-// ------------------------------------------------------------
 const ChatManager = {
   token: null,
   subscription: null,
@@ -69,13 +67,10 @@ const ChatManager = {
   }
 };
 
-// ------------------------------------------------------------
 // 2. TIMER – absolute end time, pause/resume, visibility detection
-// ------------------------------------------------------------
 let userSessionEndTime = null;
 let timerTickInterval = null;
 let hasShownFirstPayment = false;
-let hasShownExtensionPrompt = false;
 let sessionChannel = null;
 let isTimerPaused = false;
 let isPaymentInProgress = false;
@@ -109,13 +104,10 @@ function startTimerTick() {
       return;
     }
 
-    if (!hasShownFirstPayment && remaining <= 1500) {
+    // Only the mandatory payment card at 5 minutes
+    if (!hasShownFirstPayment && remaining <= 1500) { // 25:00 → 5 min elapsed
       hasShownFirstPayment = true;
       showPaymentCardForInitial();
-    }
-    if (!hasShownExtensionPrompt && remaining <= 180) {
-      hasShownExtensionPrompt = true;
-      showExtensionPrompt();
     }
   }, 250);
 }
@@ -151,8 +143,10 @@ function resumeUserTimer() {
   isTimerPaused = false;
   localStorage.removeItem('elio_timer_paused');
   localStorage.removeItem('elio_timer_paused_at');
+  localStorage.removeItem('elio_auto_paused');
   updateUserTimerDisplay();
   startTimerTick();
+
   broadcastEvent('timer-resumed', { endTime: userSessionEndTime });
 }
 
@@ -196,16 +190,13 @@ function declinePaymentEnd() {
   userEndedSession('User declined payment');
 }
 
-// ------------------------------------------------------------
-// 3. SESSION START / STOP
-// ------------------------------------------------------------
+// 3. CONVERSATION START / STOP
 function startUserSessionTimer(endTime) {
   userSessionEndTime = endTime || Date.now() + 30 * 60 * 1000;
   localStorage.setItem('elio_session_end_time', userSessionEndTime);
   localStorage.setItem('elio_session_active', 'true');
   localStorage.removeItem('elio_timer_paused');
   hasShownFirstPayment = false;
-  hasShownExtensionPrompt = false;
   isTimerPaused = false;
   updateUserTimerDisplay();
   if (timerBar) timerBar.style.display = 'flex';
@@ -217,9 +208,24 @@ function endSessionDueToTimeout() {
   cleanupAfterEnd();
 }
 
+// Single source of truth for wiping ALL session state from localStorage.
+// Call this from every end path so a page reload always starts clean.
+function clearAllSessionStorage() {
+  localStorage.removeItem('elio_session_active');
+  localStorage.removeItem('elio_session_waiting');
+  localStorage.removeItem('elio_session_token');
+  localStorage.removeItem('elio_session_time');
+  localStorage.removeItem('elio_session_end_time');
+  localStorage.removeItem('elio_timer_paused');
+  localStorage.removeItem('elio_timer_paused_at');
+  localStorage.removeItem('elio_auto_paused');
+  localStorage.removeItem('elio_card_token');
+}
+
 function cleanupAfterEnd() {
   stopTimerTick();
   userSessionEndTime = null;
+  isTimerPaused = false;
   if (timerBar) timerBar.style.display = 'none';
   chatContainer.style.display = 'none';
   document.getElementById('inputWrap').style.display = 'none';
@@ -229,17 +235,11 @@ function cleanupAfterEnd() {
   if (bookBtn) bookBtn.style.display = 'block';
   ChatManager.cleanup();
   cleanupSessionChannel();
-  localStorage.removeItem('elio_session_active');
-  localStorage.removeItem('elio_session_end_time');
-  localStorage.removeItem('elio_timer_paused');
-  localStorage.removeItem('elio_timer_paused_at');
-  localStorage.removeItem('elio_auto_paused');
+  clearAllSessionStorage();
 }
 
-// ------------------------------------------------------------
 // 4. ADMIN ACTIONS (received via broadcast)
-// ------------------------------------------------------------
-function showAdminEndedSession(reason = 'The listener has ended the session.') {
+function showAdminEndedSession(reason = 'The listener has ended this conversation.') {
   cleanupSessionChannel();
   stopTimerTick();
   userSessionEndTime = null;
@@ -255,7 +255,7 @@ function showAdminEndedSession(reason = 'The listener has ended the session.') {
     adminEndCard.id = 'adminEndCard';
     adminEndCard.className = 'card';
     adminEndCard.innerHTML = `
-      <p class="card-title">Session ended by listener</p>
+      <p class="card-title">Listener ended this conversation</p>
       <p class="card-sub" id="adminEndReason">${reason}</p>
       <button class="card-btn primary" id="closeAdminEndCard">Okay</button>
     `;
@@ -272,29 +272,40 @@ function showAdminEndedSession(reason = 'The listener has ended the session.') {
   document.getElementById('bookNowBtn').style.display = 'block';
 
   ChatManager.cleanup();
-  localStorage.removeItem('elio_session_active');
-  localStorage.removeItem('elio_session_end_time');
+  clearAllSessionStorage();
 }
 
 function handleAdminTimerPaused() {
+  if (isTimerPaused) return;
   isTimerPaused = true;
   stopTimerTick();
+  if (!localStorage.getItem('elio_timer_paused_at')) {
+    localStorage.setItem('elio_timer_paused_at', Date.now().toString());
+  }
+  localStorage.setItem('elio_timer_paused', 'true');
   if (typeof createBubble === 'function') {
     createBubble('Listener paused the timer', 'system');
   }
 }
 
-function handleAdminTimerResumed() {
+function handleAdminTimerResumed(payload) {
+  if (!isTimerPaused) return;
+  if (payload?.endTime) {
+    userSessionEndTime = payload.endTime;
+    localStorage.setItem('elio_session_end_time', userSessionEndTime);
+  }
   isTimerPaused = false;
+  localStorage.removeItem('elio_timer_paused');
+  localStorage.removeItem('elio_timer_paused_at');
+  localStorage.removeItem('elio_auto_paused');
+  updateUserTimerDisplay();
   startTimerTick();
   if (typeof createBubble === 'function') {
     createBubble('Listener resumed the timer', 'system');
   }
 }
 
-// ------------------------------------------------------------
-// 5. PAYMENT CARDS (no payment indicator, new Continue Session card)
-// ------------------------------------------------------------
+// 5. PAYMENT CARDS (mandatory payment only, no extension)
 function showContinueCard() {
   const continueCard = document.getElementById('continueCard');
   if (continueCard) showCard(continueCard);
@@ -383,37 +394,6 @@ function showPaymentRetryCard() {
   showCard(retryCard);
 }
 
-function showExtensionPrompt() {
-  pauseUserTimer();
-  isPaymentInProgress = true;
-
-  const extCard = document.getElementById('extCard');
-  if (!extCard) return;
-  const extBtn = document.getElementById('extBtn');
-  const declineBtn = document.getElementById('extDecline');
-
-  extBtn.onclick = async () => {
-    const success = await processPayment(5);
-    if (success) {
-      hideCard(extCard);
-      if (window.extendUserSession) window.extendUserSession(30);
-      showContinueCard();
-    } else {
-      alert('Payment failed. Session will end when timer reaches 0.');
-      hideCard(extCard);
-      isPaymentInProgress = false;
-      resumeUserTimer();
-    }
-  };
-
-  declineBtn.onclick = () => {
-    hideCard(extCard);
-    isPaymentInProgress = false;
-    resumeUserTimer();
-  };
-  showCard(extCard);
-}
-
 async function processPayment(amount, tx_ref = null) {
   if (!tx_ref) tx_ref = localStorage.getItem('elio_session_token') || 'test_' + Date.now();
 
@@ -453,9 +433,7 @@ async function processPayment(amount, tx_ref = null) {
   }
 }
 
-// ------------------------------------------------------------
 // 6. REALTIME LISTENER & BROADCAST
-// ------------------------------------------------------------
 function listenForStartSignal() {
   const sessionToken = localStorage.getItem('elio_session_token');
   if (!sessionToken || sessionChannel) return;
@@ -476,30 +454,20 @@ function listenForStartSignal() {
   });
 
   sessionChannel.on('broadcast', { event: 'end-session' }, (payload) => {
-    showAdminEndedSession(payload?.reason || 'The listener has ended the session.');
+    showAdminEndedSession(payload?.reason || 'The listener has ended this conversation.');
   });
 
   sessionChannel.on('broadcast', { event: 'timer-paused' }, () => {
     handleAdminTimerPaused();
   });
 
-  sessionChannel.on('broadcast', { event: 'timer-resumed' }, () => {
-    handleAdminTimerResumed();
+  sessionChannel.on('broadcast', { event: 'timer-resumed' }, (payload) => {
+    handleAdminTimerResumed(payload);
   });
 
   sessionChannel.on('broadcast', { event: 'listener-disconnected' }, () => {
     if (typeof createBubble === 'function') {
       createBubble('Listener has disconnected.', 'system');
-    }
-  });
-
-  // 👇 NEW: listen for session extensions from the admin
-  sessionChannel.on('broadcast', { event: 'session-extended' }, (payload) => {
-    if (payload?.newEndTime) {
-      userSessionEndTime = payload.newEndTime;
-      localStorage.setItem('elio_session_end_time', userSessionEndTime);
-      updateUserTimerDisplay();
-      hasShownExtensionPrompt = false;   // allow another extension prompt if needed
     }
   });
 
@@ -524,36 +492,19 @@ function cleanupSessionChannel() {
   }
 }
 
-// ------------------------------------------------------------
 // 7. DISCONNECT NOTIFICATION
-// ------------------------------------------------------------
 window.addEventListener('beforeunload', () => {
   if (sessionChannel && userSessionEndTime) {
     broadcastEvent('user-disconnected', {});
   }
 });
 
-// ------------------------------------------------------------
 // 8. GLOBAL EXPOSURE
-// ------------------------------------------------------------
 window.startUserSessionTimer = startUserSessionTimer;
+window.clearAllSessionStorage = clearAllSessionStorage;
 window.stopUserSessionTimer = () => {
   stopTimerTick();
   timerBar.style.display = 'none';
-};
-
-// 👇 CHANGED: broadcasts the new end time to the admin
-window.extendUserSession = (minutes) => {
-  if (userSessionEndTime) {
-    userSessionEndTime += minutes * 60 * 1000;
-    localStorage.setItem('elio_session_end_time', userSessionEndTime);
-    updateUserTimerDisplay();
-    hasShownExtensionPrompt = false;
-    broadcastEvent('session-extended', {
-      addedMinutes: minutes,
-      newEndTime: userSessionEndTime
-    });
-  }
 };
 
 const userEndBtn = document.getElementById('userEndSessionBtn');
@@ -597,11 +548,7 @@ function showWaitingState() {
         pauseUserTimer();
       }
     } else {
-      localStorage.removeItem('elio_session_active');
-      localStorage.removeItem('elio_session_end_time');
-      localStorage.removeItem('elio_timer_paused');
-      localStorage.removeItem('elio_timer_paused_at');
-      localStorage.removeItem('elio_auto_paused');
+      clearAllSessionStorage();
     }
   }
 })();

@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   
   <!-- SEO & Social -->
-  <title>Elio - Your Human Chatbot · Anonymous Listening Sessions</title>
-  <meta name="description" content="Elio is a safe, anonymous space where you can talk to a real human listener. No accounts, no history, no judgment. Book a 30‑minute session for the price of a coffee." />
+  <title>Elio - Your Human Chatbot · Anonymous Listening Conversations</title>
+  <meta name="description" content="Elio is a safe, anonymous space where you can talk to a real human listener. No accounts, no history, no judgment. Book a 30‑minute conversation for the price of a coffee." />
   <link rel="canonical" href="https://chatwithelio.netlify.app" />
   
   <meta property="og:title" content="Elio - Your Human Chatbot" />
@@ -42,7 +42,7 @@
       <a data-panel="rules">Rules</a>
       <a data-panel="refund">Refund Policy</a>
       <a data-panel="privacy">Privacy Policy</a>
-      <a data-action="book">Talk to a human</a>
+      <a data-action="book">Schedule a conversation</a>
     </nav>
   </aside>
 
@@ -56,8 +56,8 @@
     <h1>About Elio</h1>
     <p>Elio is a safe, anonymous space where you can say the things you can't say anywhere else. No accounts. No history. No judgment.</p>
     <p>On the other side of every conversation is a real human listening, present, and genuinely there for you.</p>
-    <p>We don't know who you are and we never will. Every session is treated as a completely new person. Nothing follows you.</p>
-    <p>Every session ends and disappears. Nothing is stored. Nothing follows you.</p>
+    <p>We don't know who you are and we never will. Every conversation is treated as completely new. Nothing follows you.</p>
+    <p>Every conversation ends and disappears. Nothing is stored. Nothing follows you.</p>
   </div>
 
   <!-- Rules -->
@@ -68,7 +68,7 @@
     <ul>
       <li>Sharing anything on your mind freely and honestly</li>
       <li>Taking your time, there's no rush here</li>
-      <li>Ending the session whenever you need to</li>
+      <li>Ending the conversation whenever you need to</li>
     </ul>
     <h2>What's not allowed</h2>
     <ul>
@@ -78,7 +78,7 @@
       <li>Using Elio for anything other than honest conversation</li>
     </ul>
     <h2>Violations</h2>
-    <p>Sessions involving rule violations will be ended immediately.</p>
+    <p>Conversations involving rule violations will be ended immediately.</p>
   </div>
 
   <!-- Privacy -->
@@ -88,29 +88,28 @@
     <p>Elio is built on anonymity. Here is exactly what we do and don't store.</p>
     <h2>What we never store</h2>
     <ul>
-      <li>Your messages - they exist only during the session (they are temporarily held so you can pick up where you left off if you refresh; they are permanently deleted once the session ends).</li>
-      <li>Your name - even if you provide one, it's forgotten after the session</li>
-      <li>Your identity - no account, no profile, no trace</li>
-      <li>Your payment card details - we never see them; they go directly to our payment processor</li>
+      <li>Your messages only exists during the conversation.</li>
+      <li>Your identity. There is no account, no profile, no trace</li>
+      <li>Your payment card details. We never see them; they go directly to our payment processor</li>
     </ul>
     <h2>What we do store</h2>
     <ul>
-      <li>Session duration and payment amount - for our own records only</li>
+      <li>Conversation duration and payment amount - for our own records only</li>
       <li>Your rating and feedback - anonymously, with no link to you</li>
     </ul>
     <h2>Anonymity is absolute</h2>
-    <p>We don't know who you are. Every time you book a session, you are a brand new person to us. There is no way to connect one session to another.</p>
+    <p>We don't know who you are. Every time you book a conversation, you are a brand new person to us. There is no way to connect one conversation to another.</p>
   </div>
 
   <!-- Refund -->
   <div class="panel" id="refund">
     <button class="panel-back" data-close="refund">← Back</button>
     <h1>Refund Policy</h1>
-    <p>Sessions are priced at $5 for 30 minutes. Extensions are $5 each.</p>
+    <p>Each conversation is priced at $5 for 30 minutes.</p>
     <h2>No refunds after payment</h2>
-    <p>Once you’ve paid for a session, it is considered delivered and non‑refundable. The 5‑minute free trial gives you enough time to decide if you want to continue.</p>
-    <h2>Declined sessions</h2>
-    <p>If you decline payment when prompted, the session ends immediately. No charge is made for the conversation prior to the payment prompt.</p>
+    <p>Once you’ve paid for a conversation, it is considered delivered and non‑refundable. The 5‑minute free trial gives you enough time to decide if you want to continue.</p>
+    <h2>Declining of Payment</h2>
+    <p>If you decline payment when prompted, the conversation ends immediately. No charge is made for the conversation prior to the payment prompt.</p>
 </div>
 
   <!-- TOP BAR -->
@@ -133,7 +132,7 @@
 
     <!-- Countdown -->
     <section class="countdown" id="countdown" style="display: none;">
-      <h1>Your session is booked</h1>
+      <h1>Your conversation is scheduled</h1>
       <p class="session-time" id="sessionTimeUser"></p>
       <div class="timer" id="timer">
         <span class="timer-block"><span id="days">0</span><small>d</small></span>
@@ -142,7 +141,7 @@
         <span class="timer-block"><span id="seconds">0</span><small>s</small></span>
       </div>
       <p class="card-sub">Come back when the timer hits zero.<br>The chat will open automatically.</p>
-      <p class="cancel-note">If you don't make it to your session within 10 minutes,<br>it's assumed you cancelled your session.</p>
+      <p class="cancel-note">If you don't make it to the chat within 10 minutes,<br>it's assumed you are not interested in the conversation and the scheduled time is cancelled.</p>
     </section>
 
     <!-- Chat -->
@@ -150,7 +149,7 @@
       <div class="session-timer-bar" id="sessionTimerBar" style="display: none;">
         <span class="timer-label">Time left</span>
         <span class="timer-display" id="sessionTimerDisplay">30:00</span>
-        <button id="userEndSessionBtn" style="margin-left: auto; padding: 10px, 15px; background: none; border: none; border-radius: 15px; background-color: rgba(239,68,68,0.10); color: #ef4444; cursor: pointer; font-size: 13px;">Leave session</button>
+        <button id="userEndSessionBtn" style="margin-left: auto; padding: 10px, 15px; background: none; border: none; border-radius: 15px; background-color: rgba(239,68,68,0.10); color: #ef4444; cursor: pointer; font-size: 13px;">End Conversation</button>
       </div>
     </div>
   </main>
@@ -158,7 +157,7 @@
   <!-- INPUT BAR -->
   <div class="input-bar" id="inputBar">
     <button class="card-btn primary" id="bookNowBtn" style="max-width: 300px; margin: 0 auto; display: block;">
-      Talk to a human
+      Schedule your conversation
     </button>
     <div class="input-wrap" id="inputWrap" style="display: none;">
       <input type="text" class="msg-input" id="msgInput" placeholder="Say anything..." />
@@ -173,7 +172,7 @@
   <!-- POPUP CARDS -->
   <!-- Booking Card -->
   <div class="card" id="bookCard">
-  <p class="card-title">Talk to a human</p>
+  <p class="card-title">Schedule your Conversation</p>
   <p class="card-sub">Choose a date and time that works for you</p>
 
   <label for="bookDate" class="book-label">Date</label>
@@ -184,7 +183,7 @@
   <input type="hidden" id="bookTime" />
 
   <p class="card-sub" style="margin-top: 4px;">For the price of a coffee, you get 30 minutes of genuine listening.</p><br>
-  <button class="card-btn primary" id="bookConfirm">Book my session for $5</button>
+  <button class="card-btn primary" id="bookConfirm">Schedule a conversation</button>
   <button class="card-btn ghost" id="bookCancel">Nevermind</button>
   <p class="vpn-warning">⚠️ Please disable VPNs as they can show the wrong time zone.</p>
 </div>
@@ -200,16 +199,8 @@
   <!-- Continue Session Card (after successful payment) -->
   <div class="card" id="continueCard">
     <p class="card-title">Payment successful</p>
-    <p class="card-sub">Click continue to resume your session.</p>
-    <button class="card-btn primary" id="continueSessionBtn">Continue session</button>
-  </div>
-
-  <!-- Extension Card -->
-  <div class="card" id="extCard">
-    <p class="card-title">Keep going?</p>
-    <p class="card-sub">For another coffee, add 30 minutes to your session.</p>
-    <button class="card-btn primary" id="extBtn">Extend</button>
-    <button class="card-btn ghost" id="extDecline">Nah, I'm Good</button>
+    <p class="card-sub">Click continue to resume your conversation.</p>
+    <button class="card-btn primary" id="continueSessionBtn">Continue conversation</button>
   </div>
 
   <!-- Session Ended Card -->
