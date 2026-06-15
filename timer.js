@@ -15,7 +15,6 @@ const ChatManager = {
 
     this.token = sessionToken;
 
-    // Fetch existing messages for this session
     const { data, error } = await window.supabaseClient
       .from('messages')
       .select('*')
@@ -26,9 +25,9 @@ const ChatManager = {
       data.forEach(msg => this.renderMessage(msg.sender, msg.text, msg.id));
     }
 
-    // Use a unique channel name per session to avoid collision after refresh
+    // Unique channel per session (avoids subscription collisions)
     this.subscription = window.supabaseClient
-      .channel(`chat:${sessionToken}`)   // ✅ FIX: unique channel name
+      .channel(`chat:${sessionToken}`)
       .on(
         'postgres_changes',
         {
@@ -106,8 +105,8 @@ function startTimerTick() {
       return;
     }
 
-    // Only the mandatory payment card at 5 minutes
-    if (!hasShownFirstPayment && remaining <= 1500) { // 25:00 → 5 min elapsed
+    // Payment card at 5 minutes (only if not already paid)
+    if (!hasShownFirstPayment && remaining <= 1500) {
       hasShownFirstPayment = true;
       showPaymentCardForInitial();
     }
@@ -121,7 +120,7 @@ function stopTimerTick() {
   }
 }
 
-// ---- Pause / Resume with localStorage persistence ----
+// Pause / Resume with localStorage persistence
 function pauseUserTimer() {
   if (isTimerPaused) return;
   isTimerPaused = true;
@@ -152,7 +151,7 @@ function resumeUserTimer() {
   broadcastEvent('timer-resumed', { endTime: userSessionEndTime });
 }
 
-// ---- Page Visibility – pause when user leaves tab, auto-resume when they return ----
+// Page Visibility – pause when user leaves tab, auto-resume when they return
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
     if (!isTimerPaused && userSessionEndTime) {
@@ -171,7 +170,7 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 
-// ---- User‑ended session ----
+// User‑ended session
 function userEndedSession(reason = 'User ended the session') {
   broadcastEvent('user-ended-session', { reason });
 
@@ -189,6 +188,9 @@ function userEndedSession(reason = 'User ended the session') {
 
 function declinePaymentEnd() {
   isPaymentInProgress = false;
+  // Clear all payment‑related flags
+  localStorage.removeItem('elio_payment_card_shown');
+  localStorage.removeItem('elio_continue_pending');
   userEndedSession('User declined payment');
 }
 
@@ -198,7 +200,7 @@ function startUserSessionTimer(endTime) {
   localStorage.setItem('elio_session_end_time', userSessionEndTime);
   localStorage.setItem('elio_session_active', 'true');
   localStorage.removeItem('elio_timer_paused');
-  // ✅ FIX: Restore payment flag to avoid re‑prompting after refresh
+  // Prevent re‑prompting payment if already paid before refresh
   hasShownFirstPayment = localStorage.getItem('elio_has_paid_initial') === 'true';
   isTimerPaused = false;
   updateUserTimerDisplay();
@@ -211,7 +213,7 @@ function endSessionDueToTimeout() {
   cleanupAfterEnd();
 }
 
-// Single source of truth for wiping ALL session state from localStorage.
+// Centralised cleanup of ALL session localStorage keys
 function clearAllSessionStorage() {
   localStorage.removeItem('elio_session_active');
   localStorage.removeItem('elio_session_waiting');
@@ -222,7 +224,9 @@ function clearAllSessionStorage() {
   localStorage.removeItem('elio_timer_paused_at');
   localStorage.removeItem('elio_auto_paused');
   localStorage.removeItem('elio_card_token');
-  localStorage.removeItem('elio_has_paid_initial');   // ✅ clear payment flag
+  localStorage.removeItem('elio_has_paid_initial');
+  localStorage.removeItem('elio_payment_card_shown');
+  localStorage.removeItem('elio_continue_pending');
 }
 
 function cleanupAfterEnd() {
@@ -320,6 +324,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.addEventListener('click', () => {
       hideCard(document.getElementById('continueCard'));
       isPaymentInProgress = false;
+      localStorage.removeItem('elio_continue_pending');   // clear flag
       resumeUserTimer();
     });
   }
@@ -328,6 +333,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function showPaymentCardForInitial() {
   pauseUserTimer();
   isPaymentInProgress = true;
+  localStorage.setItem('elio_payment_card_shown', 'true');   // flag for restore
 
   const payCard = document.getElementById('payCard');
   if (!payCard) return;
@@ -339,6 +345,8 @@ function showPaymentCardForInitial() {
       const success = await processPayment(5);
       if (success) {
         hideCard(payCard);
+        localStorage.removeItem('elio_payment_card_shown');
+        localStorage.setItem('elio_continue_pending', 'true');
         showContinueCard();
       } else {
         alert('Payment failed. Please try again or use another card.');
@@ -354,7 +362,7 @@ function showPaymentCardForInitial() {
 
   declineBtn.onclick = () => {
     hideCard(payCard);
-    declinePaymentEnd();
+    declinePaymentEnd();   // clears flags + ends session
   };
   showCard(payCard);
 }
@@ -362,6 +370,7 @@ function showPaymentCardForInitial() {
 function showPaymentRetryCard() {
   pauseUserTimer();
   isPaymentInProgress = true;
+  localStorage.setItem('elio_payment_card_shown', 'true');   // retry is still payment stage
 
   let retryCard = document.getElementById('paymentRetryCard');
   if (!retryCard) {
@@ -384,6 +393,8 @@ function showPaymentRetryCard() {
     hideCard(retryCard);
     const success = await processPayment(5);
     if (success) {
+      localStorage.removeItem('elio_payment_card_shown');
+      localStorage.setItem('elio_continue_pending', 'true');
       showContinueCard();
     } else {
       endSessionDueToTimeout();
@@ -411,7 +422,7 @@ async function processPayment(amount, tx_ref = null) {
 
     return new Promise((resolve) => {
       FlutterwaveCheckout({
-        public_key: 'FLWPUBK_TEST-6c117d2b73a2d0aee2a31c4a6826eea9-X',
+        public_key: 'FLWPUBK-177ced4d17b3d3e9b9f00d7394f88264-X',   // your live key
         tx_ref: data.data.tx_ref,
         amount: amount,
         currency: 'USD',
@@ -423,8 +434,7 @@ async function processPayment(amount, tx_ref = null) {
         },
         callback: (response) => {
           console.log('Payment success', response);
-          // ✅ FIX: remember that the initial payment was made
-          localStorage.setItem('elio_has_paid_initial', 'true');
+          localStorage.setItem('elio_has_paid_initial', 'true');   // prevent re‑prompt
           const cardToken = response.data?.card?.token || null;
           if (cardToken) localStorage.setItem('elio_card_token', cardToken);
           resolve(true);
@@ -443,7 +453,7 @@ function listenForStartSignal() {
   const sessionToken = localStorage.getItem('elio_session_token');
   if (!sessionToken) return;
 
-  // ✅ FIX: Always clean up any previous subscription first.
+  // Always clean up previous subscription before creating new one
   cleanupSessionChannel();
 
   sessionChannel = window.supabaseClient.channel(`session:${sessionToken}`);
@@ -460,7 +470,7 @@ function listenForStartSignal() {
     localStorage.setItem('elio_session_active', 'true');
     startUserSessionTimer(startTime + 30 * 60 * 1000);
 
-    // Make sure the chat subscription is active (for early starts)
+    // Ensure chat subscription is active
     const token = localStorage.getItem('elio_session_token');
     if (token) ChatManager.init(token);
   });
@@ -533,7 +543,7 @@ function showWaitingState() {
   if (endBtn) endBtn.style.display = 'inline-block';
 }
 
-// Restore timer if session was active, honour paused flag
+// Restore timer if session was active, honour paused flag & payment stage
 (function restoreTimerOnReload() {
   if (localStorage.getItem('elio_session_active') === 'true') {
     const savedEndTime = parseInt(localStorage.getItem('elio_session_end_time'));
@@ -543,6 +553,7 @@ function showWaitingState() {
 
     if (savedEndTime && savedEndTime > Date.now()) {
       if (autoPaused) {
+        // Visibility pause – just resume normally, no cards
         localStorage.removeItem('elio_auto_paused');
         localStorage.removeItem('elio_timer_paused');
         localStorage.removeItem('elio_timer_paused_at');
@@ -557,7 +568,14 @@ function showWaitingState() {
         }
         startUserSessionTimer(adjustedEndTime);
         if (wasPaused) {
-          pauseUserTimer();
+          pauseUserTimer();   // keep paused
+
+          // Restore the correct payment‑stage card
+          if (localStorage.getItem('elio_continue_pending') === 'true') {
+            showContinueCard();            // show "Continue session" – timer stays paused
+          } else if (localStorage.getItem('elio_payment_card_shown') === 'true') {
+            showPaymentCardForInitial();   // show payment card again (re‑sets flags)
+          }
         }
       }
     } else {
