@@ -1,6 +1,5 @@
 // cards.js – card visibility, feedback submission to Supabase
 
-// ─── Card Elements ───────────────────────────────
 const payCard     = document.getElementById('payCard');
 const extCard     = document.getElementById('extCard');
 const endCard     = document.getElementById('endCard');

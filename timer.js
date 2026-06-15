@@ -15,6 +15,7 @@ const ChatManager = {
 
     this.token = sessionToken;
 
+    // Fetch existing messages for this session
     const { data, error } = await window.supabaseClient
       .from('messages')
       .select('*')
@@ -25,8 +26,9 @@ const ChatManager = {
       data.forEach(msg => this.renderMessage(msg.sender, msg.text, msg.id));
     }
 
+    // Use a unique channel name per session to avoid collision after refresh
     this.subscription = window.supabaseClient
-      .channel('table-db-changes')
+      .channel(`chat:${sessionToken}`)   // ✅ FIX: unique channel name
       .on(
         'postgres_changes',
         {
@@ -196,7 +198,8 @@ function startUserSessionTimer(endTime) {
   localStorage.setItem('elio_session_end_time', userSessionEndTime);
   localStorage.setItem('elio_session_active', 'true');
   localStorage.removeItem('elio_timer_paused');
-  hasShownFirstPayment = false;
+  // ✅ FIX: Restore payment flag to avoid re‑prompting after refresh
+  hasShownFirstPayment = localStorage.getItem('elio_has_paid_initial') === 'true';
   isTimerPaused = false;
   updateUserTimerDisplay();
   if (timerBar) timerBar.style.display = 'flex';
@@ -209,7 +212,6 @@ function endSessionDueToTimeout() {
 }
 
 // Single source of truth for wiping ALL session state from localStorage.
-// Call this from every end path so a page reload always starts clean.
 function clearAllSessionStorage() {
   localStorage.removeItem('elio_session_active');
   localStorage.removeItem('elio_session_waiting');
@@ -220,6 +222,7 @@ function clearAllSessionStorage() {
   localStorage.removeItem('elio_timer_paused_at');
   localStorage.removeItem('elio_auto_paused');
   localStorage.removeItem('elio_card_token');
+  localStorage.removeItem('elio_has_paid_initial');   // ✅ clear payment flag
 }
 
 function cleanupAfterEnd() {
@@ -420,6 +423,8 @@ async function processPayment(amount, tx_ref = null) {
         },
         callback: (response) => {
           console.log('Payment success', response);
+          // ✅ FIX: remember that the initial payment was made
+          localStorage.setItem('elio_has_paid_initial', 'true');
           const cardToken = response.data?.card?.token || null;
           if (cardToken) localStorage.setItem('elio_card_token', cardToken);
           resolve(true);
@@ -436,7 +441,10 @@ async function processPayment(amount, tx_ref = null) {
 // 6. REALTIME LISTENER & BROADCAST
 function listenForStartSignal() {
   const sessionToken = localStorage.getItem('elio_session_token');
-  if (!sessionToken || sessionChannel) return;
+  if (!sessionToken) return;
+
+  // ✅ FIX: Always clean up any previous subscription first.
+  cleanupSessionChannel();
 
   sessionChannel = window.supabaseClient.channel(`session:${sessionToken}`);
 
@@ -451,6 +459,10 @@ function listenForStartSignal() {
     if (bookNowBtn) bookNowBtn.style.display = 'none';
     localStorage.setItem('elio_session_active', 'true');
     startUserSessionTimer(startTime + 30 * 60 * 1000);
+
+    // Make sure the chat subscription is active (for early starts)
+    const token = localStorage.getItem('elio_session_token');
+    if (token) ChatManager.init(token);
   });
 
   sessionChannel.on('broadcast', { event: 'end-session' }, (payload) => {
@@ -463,12 +475,6 @@ function listenForStartSignal() {
 
   sessionChannel.on('broadcast', { event: 'timer-resumed' }, (payload) => {
     handleAdminTimerResumed(payload);
-  });
-
-  sessionChannel.on('broadcast', { event: 'listener-disconnected' }, () => {
-    if (typeof createBubble === 'function') {
-      createBubble('Listener has disconnected.', 'system');
-    }
   });
 
   sessionChannel.subscribe((status) => {
@@ -532,20 +538,27 @@ function showWaitingState() {
   if (localStorage.getItem('elio_session_active') === 'true') {
     const savedEndTime = parseInt(localStorage.getItem('elio_session_end_time'));
     const wasPaused = localStorage.getItem('elio_timer_paused') === 'true';
+    const autoPaused = localStorage.getItem('elio_auto_paused') === 'true';
     const pausedAt = parseInt(localStorage.getItem('elio_timer_paused_at'));
 
     if (savedEndTime && savedEndTime > Date.now()) {
-      let adjustedEndTime = savedEndTime;
-      if (wasPaused && pausedAt) {
-        const pausedDuration = Date.now() - pausedAt;
-        adjustedEndTime = savedEndTime + pausedDuration;
-        localStorage.setItem('elio_timer_paused_at', Date.now().toString());
-        localStorage.setItem('elio_session_end_time', adjustedEndTime);
-      }
-
-      startUserSessionTimer(adjustedEndTime);
-      if (wasPaused) {
-        pauseUserTimer();
+      if (autoPaused) {
+        localStorage.removeItem('elio_auto_paused');
+        localStorage.removeItem('elio_timer_paused');
+        localStorage.removeItem('elio_timer_paused_at');
+        startUserSessionTimer(savedEndTime);
+      } else {
+        let adjustedEndTime = savedEndTime;
+        if (wasPaused && pausedAt) {
+          const pausedDuration = Date.now() - pausedAt;
+          adjustedEndTime = savedEndTime + pausedDuration;
+          localStorage.setItem('elio_timer_paused_at', Date.now().toString());
+          localStorage.setItem('elio_session_end_time', adjustedEndTime);
+        }
+        startUserSessionTimer(adjustedEndTime);
+        if (wasPaused) {
+          pauseUserTimer();
+        }
       }
     } else {
       clearAllSessionStorage();
