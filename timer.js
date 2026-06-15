@@ -151,25 +151,6 @@ function resumeUserTimer() {
   broadcastEvent('timer-resumed', { endTime: userSessionEndTime });
 }
 
-// Page Visibility – pause when user leaves tab, auto-resume when they return
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden) {
-    if (!isTimerPaused && userSessionEndTime) {
-      isTimerPaused = true;
-      stopTimerTick();
-      localStorage.setItem('elio_timer_paused', 'true');
-      localStorage.setItem('elio_timer_paused_at', Date.now().toString());
-      localStorage.setItem('elio_auto_paused', 'true');
-      broadcastEvent('timer-paused');
-    }
-  } else {
-    if (isTimerPaused && localStorage.getItem('elio_auto_paused') === 'true' && !isPaymentInProgress) {
-      localStorage.removeItem('elio_auto_paused');
-      resumeUserTimer();
-    }
-  }
-});
-
 // User‑ended session
 function userEndedSession(reason = 'User ended the session') {
   broadcastEvent('user-ended-session', { reason });
