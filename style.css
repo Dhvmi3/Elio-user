@@ -666,3 +666,42 @@ body {
   transform: translateY(0);
   pointer-events: all;
 }
+
+/* 📱 Mobile‑friendly countdown */
+@media (max-width: 520px) {
+  .countdown {
+    margin: 5vh auto 0;           /* less top gap */
+    padding: 28px 18px;           /* slightly tighter */
+    max-width: 100%;              /* use full width */
+  }
+
+  .countdown h1 {
+    font-size: 20px;
+  }
+
+  .timer {
+    gap: 8px;
+    margin: 20px 0 12px;
+  }
+
+  .timer-block {
+    font-size: 28px;
+    width: 60px;
+    padding: 10px 6px;
+    border-radius: 16px;
+  }
+
+  .timer-block small {
+    font-size: 11px;
+  }
+
+  .session-time {
+    font-size: 14px;
+    margin: 6px 0 16px;
+  }
+
+  .countdown .card-sub,
+  .cancel-note {
+    font-size: 13px;
+  }
+}
